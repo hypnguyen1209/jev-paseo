@@ -12,6 +12,7 @@ import {
   JevReopenTaskRpc,
   JevResolveTaskRpc,
   JevStatsRpc,
+  JevUpdateTaskRpc,
 } from "../shared/rpc";
 import type { JevTask } from "../shared/task";
 
@@ -31,6 +32,8 @@ export interface JevModel {
   label: string;
   /** The provider (agent harness) that serves this model: claude, codex, pi, minimax, etc. */
   provider: string;
+  /** The provider's own default model — used to seed a pick when no default is configured. */
+  isDefault: boolean;
 }
 
 /** Show just the model half of `provider/model` so labels don't overflow. */
@@ -45,7 +48,7 @@ export function useJevModels(cwd?: string): { models: JevModel[]; note: string |
     void listModels(cwd ? { cwd } : {}) // cwd scopes provider discovery to the workspace
       .then((r) => {
         if (!live) return;
-        setModels(r.models.map((m) => ({ id: m.id, label: shortModel(m.id), provider: m.provider })));
+        setModels(r.models.map((m) => ({ id: m.id, label: shortModel(m.id), provider: m.provider, isDefault: m.isDefault })));
         setNote(r.note ?? null);
       })
       .catch((e) => {
@@ -78,6 +81,7 @@ export interface UseJevTasks {
   busyAll: boolean;
   refresh: () => Promise<void>;
   add: (input: AddTaskInput) => Promise<Result>;
+  update: (id: string, input: AddTaskInput) => Promise<Result>;
   judge: (id: string, model?: string) => Promise<Result>;
   judgeAll: () => Promise<{ resolved: number; note?: string }>;
   rejudge: (id: string, model?: string) => Promise<Result>;
@@ -88,6 +92,7 @@ export interface UseJevTasks {
 export function useJevTasks(workspaceId: string, agentId: string, cwd: string): UseJevTasks {
   const listTasks = useRpc(JevListTasksRpc);
   const addRpc = useRpc(JevAddTaskRpc);
+  const updateRpc = useRpc(JevUpdateTaskRpc);
   const judgeRpc = useRpc(JevJudgeTaskRpc);
   const judgeAllRpc = useRpc(JevJudgeAllRpc);
   const reopenRpc = useRpc(JevReopenTaskRpc);
@@ -126,6 +131,15 @@ export function useJevTasks(workspaceId: string, agentId: string, cwd: string): 
       return res.ok ? { ok: true } : { ok: false, note: res.note };
     },
     [addRpc, workspaceId, agentId, cwd, refresh],
+  );
+
+  const update = useCallback(
+    async (id: string, input: AddTaskInput): Promise<Result> => {
+      const res = await updateRpc({ id, ...input });
+      await refresh(false); // editing doesn't touch the decision log
+      return res.ok ? { ok: true } : { ok: false, note: res.note };
+    },
+    [updateRpc, refresh],
   );
 
   const judge = useCallback(
@@ -198,5 +212,5 @@ export function useJevTasks(workspaceId: string, agentId: string, cwd: string): 
   const pending = useMemo(() => tasks.filter((t) => t.status === "pending"), [tasks]);
   const resolved = useMemo(() => tasks.filter((t) => t.status === "resolved"), [tasks]);
 
-  return { tasks, pending, resolved, stats, busyId, busyAll, refresh, add, judge, judgeAll, rejudge, resolve, remove };
+  return { tasks, pending, resolved, stats, busyId, busyAll, refresh, add, update, judge, judgeAll, rejudge, resolve, remove };
 }

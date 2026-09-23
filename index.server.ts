@@ -11,6 +11,7 @@ import {
   JevReopenTaskRpc,
   JevResolveTaskRpc,
   JevStatsRpc,
+  JevUpdateTaskRpc,
 } from "./shared/rpc";
 import { jevSettings } from "./shared/settings";
 import { modelsHandler } from "./server/models";
@@ -24,6 +25,7 @@ import {
   reopenTaskHandler,
   resolveTaskHandler,
   statsHandler,
+  updateTaskHandler,
 } from "./server/tasks";
 
 export default function contribute(server: PluginServerContext) {
@@ -33,6 +35,7 @@ export default function contribute(server: PluginServerContext) {
   server.handle(JevModelsRpc, modelsHandler);
   server.handle(JevListTasksRpc, listTasksHandler());
   server.handle(JevAddTaskRpc, addTaskHandler());
+  server.handle(JevUpdateTaskRpc, updateTaskHandler());
   server.handle(JevJudgeTaskRpc, judgeTaskHandler());
   server.handle(JevJudgeAllRpc, judgeAllHandler());
   server.handle(JevResolveTaskRpc, resolveTaskHandler());

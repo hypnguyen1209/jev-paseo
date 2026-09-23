@@ -12,6 +12,7 @@ import {
   reopenTaskHandler,
   resolveTaskHandler,
   statsHandler,
+  updateTaskHandler,
 } from "../server/tasks";
 import { addTask, getTask } from "../server/store";
 import { readLog } from "../server/log";
@@ -93,6 +94,25 @@ function fbContext(): { context: PluginHandlerContext; sent: string[] } {
   } as unknown as PluginHandlerContext;
   return { context, sent };
 }
+
+describe("updateTaskHandler", () => {
+  it("edits a pending task's fields", async () => {
+    addTask(mk("U1", "upd", { instructions: "old?", type: "choice", options: ["a", "b"] }));
+    const res = await updateTaskHandler()({ id: "U1", type: "choice", instructions: "new?", options: ["x", "y", "z"], model: "prov/m" });
+    expect(res.ok).toBe(true);
+    const t = getTask("U1");
+    expect(t?.instructions).toBe("new?");
+    expect(t?.options).toEqual(["x", "y", "z"]);
+    expect(t?.model).toBe("prov/m");
+  });
+  it("won't edit a resolved task, and validates", async () => {
+    addTask(mk("U2", "upd", { status: "resolved" }));
+    expect((await updateTaskHandler()({ id: "U2", type: "noul", instructions: "x", options: [] })).ok).toBe(false);
+    addTask(mk("U3", "upd"));
+    expect((await updateTaskHandler()({ id: "U3", type: "noul", instructions: "   ", options: [] })).ok).toBe(false);
+    expect((await updateTaskHandler()({ id: "U3", type: "choice", instructions: "pick", options: ["one"] })).ok).toBe(false);
+  });
+});
 
 describe("reopenTaskHandler", () => {
   it("sends a resolved task back to pending and clears the result", async () => {

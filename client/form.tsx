@@ -12,32 +12,47 @@ import type { AddTaskInput, JevModel } from "./use-jev";
 
 type DecisionType = "choice" | "score" | "noul";
 
+export interface JevFormInitial {
+  type: DecisionType;
+  instructions: string;
+  options: string[];
+  model?: string;
+  strict?: boolean;
+  state?: string;
+}
+
 export function JevForm({
   theme,
-  add,
+  submit,
   models,
   modelsNote,
+  initial,
+  submitLabel,
   compact,
-  onAdded,
+  onDone,
 }: {
   theme: PluginTheme;
-  add: (input: AddTaskInput) => Promise<{ ok: boolean; note?: string }>;
+  submit: (input: AddTaskInput) => Promise<{ ok: boolean; note?: string }>;
   models: JevModel[];
   modelsNote: string | null;
+  /** pre-fill for edit mode; when set, the settings defaults are not applied */
+  initial?: JevFormInitial;
+  submitLabel?: string;
   compact?: boolean;
-  onAdded?: () => void;
+  onDone?: () => void;
 }) {
   const c = theme.colors;
+  const editing = Boolean(initial);
   const settings = useSettings(jevSettings);
-  const [model, setModel] = useState("");
-  const [type, setType] = useState<DecisionType>("choice");
-  const [strict, setStrict] = useState(true);
-  const [instructions, setInstructions] = useState("");
-  const [optionsText, setOptionsText] = useState("");
-  const [stateText, setStateText] = useState("");
+  const [model, setModel] = useState(initial?.model ?? "");
+  const [type, setType] = useState<DecisionType>(initial?.type ?? "choice");
+  const [strict, setStrict] = useState(initial?.strict ?? true);
+  const [instructions, setInstructions] = useState(initial?.instructions ?? "");
+  const [optionsText, setOptionsText] = useState(initial?.options.join("\n") ?? "");
+  const [stateText, setStateText] = useState(initial?.state ?? "");
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<string | null>(null);
-  const seededRef = useRef(false);
+  const seededRef = useRef(editing); // editing rows arrive pre-seeded; don't stomp them with defaults
 
   useEffect(() => {
     if (seededRef.current || settings.status !== "ready") return;
@@ -53,12 +68,12 @@ export function JevForm({
   const needsOptions = type !== "noul";
   const canAdd = !busy && instructions.trim().length > 0 && (!needsOptions || options.length >= 2);
 
-  const submit = useCallback(async () => {
+  const onSubmit = useCallback(async () => {
     if (!canAdd) return;
     setBusy(true);
     setNote(null);
     try {
-      const res = await add({
+      const res = await submit({
         type,
         instructions: instructions.trim(),
         options,
@@ -67,17 +82,19 @@ export function JevForm({
         state: stateText.trim() || undefined,
       });
       if (res.ok) {
-        setInstructions("");
-        setOptionsText("");
-        setStateText("");
-        onAdded?.();
+        if (!editing) {
+          setInstructions("");
+          setOptionsText("");
+          setStateText("");
+        }
+        onDone?.();
       } else {
-        setNote(res.note ?? "could not add");
+        setNote(res.note ?? "could not save");
       }
     } finally {
       setBusy(false);
     }
-  }, [canAdd, add, type, instructions, options, model, strict, stateText, onAdded]);
+  }, [canAdd, submit, type, instructions, options, model, strict, stateText, editing, onDone]);
 
   const pad = compact ? space[2] : space[3];
   const s = useMemo(
@@ -118,7 +135,10 @@ export function JevForm({
       <Dropdown
         theme={theme}
         label="preferred model (optional)"
-        items={[{ key: "", label: "default" }, ...models.map((m) => ({ key: m.id, label: m.label, hint: m.provider }))]}
+        items={[
+          { key: "", label: "default" },
+          ...models.map((m) => ({ key: m.id, label: m.label, hint: m.isDefault ? `${m.provider} · default` : m.provider })),
+        ]}
         selectedKey={model}
         onSelect={setModel}
         placeholder="default"
@@ -166,11 +186,11 @@ export function JevForm({
       <Button
         theme={theme}
         block
-        icon="Plus"
+        icon={editing ? "Check" : "Plus"}
         disabled={!canAdd}
         busy={busy}
-        onPress={submit}
-        label={busy ? "Adding…" : "Add judge task"}
+        onPress={onSubmit}
+        label={busy ? (editing ? "Saving…" : "Adding…") : submitLabel ?? "Add judge task"}
       />
       {note ? <Text style={s.note}>{note}</Text> : null}
     </View>

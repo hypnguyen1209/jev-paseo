@@ -4,7 +4,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Pressable, ScrollView, Text, View } from "react-native";
 import { useSettings } from "@getpaseo/plugin/client";
-import { Icon } from "@getpaseo/plugin/client/react-native";
+import { Icon, useToast } from "@getpaseo/plugin/client/react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
 import { jevSettings } from "../shared/settings";
 import { taskOptions, type JevTask } from "../shared/task";
@@ -27,6 +27,7 @@ function TaskRow({
   onJudge,
   onResolve,
   onRemove,
+  onEdit,
 }: {
   theme: PluginTheme;
   task: JevTask;
@@ -37,6 +38,7 @@ function TaskRow({
   onJudge: (id: string) => void;
   onResolve: (id: string, key: string) => void;
   onRemove: (id: string) => void;
+  onEdit: (id: string) => void;
 }) {
   const c = theme.colors;
   const opts = taskOptions(task);
@@ -57,6 +59,15 @@ function TaskRow({
           {task.instructions}
         </Text>
         <Text style={{ color: c.foregroundMuted, fontSize: font.sm }}>{task.type}</Text>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="edit task"
+          hitSlop={8}
+          disabled={busy}
+          onPress={() => onEdit(task.id)}
+        >
+          <Icon name="Pencil" size={iconSize.sm} color={c.foregroundMuted} />
+        </Pressable>
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="remove task"
@@ -159,14 +170,13 @@ export function JevQueueScreen({
   const c = theme.colors;
   const settings = useSettings(jevSettings);
   const { models, note: modelsNote } = useJevModels(cwd);
-  const { pending, resolved, stats, busyId, busyAll, add, judge, judgeAll, rejudge, resolve, remove } = useJevTasks(
-    workspaceId,
-    agentId,
-    cwd,
-  );
+  const { pending, resolved, stats, busyId, busyAll, add, update, judge, judgeAll, rejudge, resolve, remove } =
+    useJevTasks(workspaceId, agentId, cwd);
+  const toast = useToast();
   const [activeModel, setActiveModelState] = useState(() => rememberedModel.get(agentId) ?? "");
   const [showAdd, setShowAdd] = useState(false);
-  const [note, setNote] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const editingTask = editingId ? pending.find((t) => t.id === editingId) ?? null : null;
 
   const setActiveModel = useCallback(
     (m: string) => {
@@ -177,35 +187,41 @@ export function JevQueueScreen({
   );
 
   useEffect(() => {
-    // seed the default only when this agent has no remembered pick yet
-    if (settings.status === "ready" && !rememberedModel.has(agentId)) setActiveModelState(settings.values.defaultModel);
-  }, [settings.status, agentId]);
+    // seed only when this agent has no remembered pick yet
+    if (settings.status !== "ready" || rememberedModel.has(agentId)) return;
+    const configured = settings.values.defaultModel;
+    if (configured) return setActiveModelState(configured);
+    // no configured default → fall back to the provider's default so a fresh install can judge
+    const providerDefault = models.find((m) => m.isDefault)?.id ?? models[0]?.id;
+    if (providerDefault) setActiveModelState(providerDefault);
+  }, [settings.status, agentId, models]);
 
   const onJudge = useCallback(
     async (id: string) => {
       const r = await judge(id, activeModel || undefined);
-      setNote(r.ok ? null : r.note ?? "judge failed");
+      if (!r.ok) toast.error(r.note ?? "judge failed");
     },
-    [judge, activeModel],
+    [judge, activeModel, toast],
   );
   const onResolve = useCallback(
     async (id: string, key: string) => {
       const r = await resolve(id, key);
-      setNote(r.ok ? null : r.note ?? "could not resolve"); // clear any stale judge error on success
+      if (!r.ok) toast.error(r.note ?? "could not resolve");
     },
-    [resolve],
+    [resolve, toast],
   );
   const onRemove = useCallback((id: string) => void remove(id), [remove]);
   const onJudgeAll = useCallback(async () => {
     const r = await judgeAll();
-    setNote(r.resolved ? null : r.note ?? "nothing judged");
-  }, [judgeAll]);
+    if (r.resolved) toast.show(`judged ${r.resolved}`, { variant: "success" });
+    else toast.show(r.note ?? "nothing judged", { variant: "warning" });
+  }, [judgeAll, toast]);
   const onRejudge = useCallback(
     async (id: string) => {
       const r = await rejudge(id, activeModel || undefined);
-      setNote(r.ok ? null : r.note ?? "re-judge failed");
+      if (!r.ok) toast.error(r.note ?? "re-judge failed");
     },
-    [rejudge, activeModel],
+    [rejudge, activeModel, toast],
   );
 
   const s = useMemo(
@@ -216,7 +232,6 @@ export function JevQueueScreen({
       count: { color: c.accentForeground, backgroundColor: c.accent, fontSize: font.sm, fontWeight: weight.semibold, paddingHorizontal: space[1.5], paddingVertical: 2, borderRadius: radius.full, overflow: "hidden" as const },
       label: { color: c.foregroundMuted, fontSize: font.sm, textTransform: "uppercase" as const },
       muted: { color: c.foregroundMuted, fontSize: font.sm },
-      note: { color: c.statusDanger, fontSize: font.sm },
     }),
     [c, compact],
   );
@@ -227,17 +242,52 @@ export function JevQueueScreen({
         <Icon name="Scale" size={iconSize.md} color={c.foreground} />
         <Text style={s.title}>Judge tasks</Text>
         <Text style={s.count}>{pending.length} pending</Text>
-        <Chip theme={theme} active={showAdd} label={showAdd ? "close" : "＋ new"} onPress={() => setShowAdd((v) => !v)} />
+        <Chip
+          theme={theme}
+          active={showAdd}
+          label={showAdd ? "close" : "＋ new"}
+          onPress={() => {
+            setEditingId(null);
+            setShowAdd((v) => !v);
+          }}
+        />
       </View>
 
-      {showAdd ? (
-        <JevForm theme={theme} add={add} models={models} modelsNote={modelsNote} compact={compact} onAdded={() => setShowAdd(false)} />
+      {showAdd || editingTask ? (
+        <JevForm
+          key={editingTask ? editingTask.id : "add"}
+          theme={theme}
+          models={models}
+          modelsNote={modelsNote}
+          compact={compact}
+          submit={editingTask ? (input) => update(editingTask.id, input) : add}
+          submitLabel={editingTask ? "Save changes" : undefined}
+          initial={
+            editingTask
+              ? {
+                  type: editingTask.type,
+                  instructions: editingTask.instructions,
+                  options: editingTask.options,
+                  model: editingTask.model,
+                  strict: editingTask.strict,
+                  state: editingTask.state,
+                }
+              : undefined
+          }
+          onDone={() => {
+            setShowAdd(false);
+            setEditingId(null);
+          }}
+        />
       ) : null}
 
       <Dropdown
         theme={theme}
         label="decide with"
-        items={[{ key: "", label: "default" }, ...models.map((m) => ({ key: m.id, label: m.label, hint: m.provider }))]}
+        items={[
+          { key: "", label: "default" },
+          ...models.map((m) => ({ key: m.id, label: m.label, hint: m.isDefault ? `${m.provider} · default` : m.provider })),
+        ]}
         selectedKey={activeModel}
         onSelect={setActiveModel}
         placeholder="default"
@@ -270,11 +320,10 @@ export function JevQueueScreen({
             onJudge={onJudge}
             onResolve={onResolve}
             onRemove={onRemove}
+            onEdit={setEditingId}
           />
         ))
       )}
-
-      {note ? <Text style={s.note}>{note}</Text> : null}
 
       {resolved.length ? <Text style={s.label}>resolved</Text> : null}
       {resolved.slice(0, compact ? 3 : 8).map((t) => (

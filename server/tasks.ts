@@ -13,6 +13,7 @@ import {
   JevReopenTaskRpc,
   JevResolveTaskRpc,
   JevStatsRpc,
+  JevUpdateTaskRpc,
 } from "../shared/rpc";
 import type { JevSettingsValues } from "../shared/settings";
 import { chosenKeyOf } from "../shared/contract";
@@ -116,6 +117,26 @@ export function addTaskHandler() {
     };
     addTask(task);
     return { ok: true, task };
+  };
+}
+
+export function updateTaskHandler() {
+  return async (input: RpcInput<typeof JevUpdateTaskRpc>): Promise<RpcOutput<typeof JevUpdateTaskRpc>> => {
+    if (!input.instructions.trim()) return { ok: false, note: "Enter a question." };
+    if (input.type !== "noul" && input.options.length < 2) {
+      return { ok: false, note: "choice/score need at least 2 options." };
+    }
+    const patch: Partial<JevTask> = {
+      type: input.type,
+      instructions: input.instructions.trim(),
+      options: input.options,
+      state: input.state?.trim() || undefined,
+      model: input.model?.trim() || undefined,
+      strict: input.strict,
+    };
+    // guard: only edit a task that's still pending — never rewrite a resolved decision
+    const updated = updateTask(input.id, patch, (t) => t.status === "pending");
+    return updated ? { ok: true, task: updated } : { ok: false, note: "task not found or already resolved." };
   };
 }
 

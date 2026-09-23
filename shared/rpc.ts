@@ -46,6 +46,21 @@ export const JevAddTaskRpc = defineRpc({
   output: okTask,
 });
 
+/** Edit a still-pending task in place (question, options, model, strict, evidence). */
+export const JevUpdateTaskRpc = defineRpc({
+  name: "jev.update-task",
+  input: z.object({
+    id: z.string(),
+    type: z.enum(["noul", "choice", "score"]),
+    instructions: z.string(),
+    options: z.array(z.string()).default([]),
+    state: z.string().optional(),
+    model: z.string().optional(),
+    strict: z.boolean().optional(),
+  }),
+  output: okTask,
+});
+
 /** Resolve a task with the LLM judge on a chosen (or the task's / default) model.
  *  `config` carries the effective settings (read client-side; 0.8.0 has no server settings read). */
 export const JevJudgeTaskRpc = defineRpc({
