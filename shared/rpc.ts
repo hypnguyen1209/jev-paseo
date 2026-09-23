@@ -109,5 +109,13 @@ export const JevStatsRpc = defineRpc({
     compared: z.number(),
     agreements: z.number(),
     agreementRate: z.number().nullable(),
+    histogram: z.array(z.number()),
+    recent: z.array(
+      z.object({
+        band: z.enum(["high", "medium", "low"]).nullable(),
+        confidence: z.number(),
+        decidedBy: z.enum(["user", "model"]),
+      }),
+    ),
   }),
 });

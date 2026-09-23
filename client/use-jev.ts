@@ -25,6 +25,8 @@ export type JevStats = {
   compared: number;
   agreements: number;
   agreementRate: number | null;
+  histogram: number[];
+  recent: Array<{ band: "high" | "medium" | "low" | null; confidence: number; decidedBy: "user" | "model" }>;
 };
 
 export interface JevModel {

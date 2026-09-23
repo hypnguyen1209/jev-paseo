@@ -47,4 +47,22 @@ describe("aggregate", () => {
   it("agreementRate is null when nothing is comparable", () => {
     expect(aggregate([rec({})]).agreementRate).toBeNull();
   });
+
+  it("buckets model confidence into a 5-bin histogram (1.0 lands in the top bin)", () => {
+    const s = aggregate([
+      rec({ confidence: 0.1 }), // bin 0
+      rec({ confidence: 0.5 }), // bin 2
+      rec({ confidence: 0.85 }), // bin 4
+      rec({ confidence: 1 }), // clamps into bin 4, not a 6th
+      rec({ decidedBy: "user", confidence: 1 }), // user picks excluded from histogram
+    ]);
+    expect(s.histogram).toEqual([1, 0, 1, 0, 2]);
+  });
+
+  it("keeps the newest decisions (chronological) for the trend strip", () => {
+    const many = Array.from({ length: 15 }, (_, i) => rec({ taskId: `r${i}`, band: "medium", confidence: 0.7 }));
+    const s = aggregate(many);
+    expect(s.recent).toHaveLength(12); // capped
+    expect(s.recent[s.recent.length - 1]).toEqual({ band: "medium", confidence: 0.7, decidedBy: "model" });
+  });
 });

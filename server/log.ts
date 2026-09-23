@@ -20,6 +20,12 @@ export interface DecisionLog {
   createdAt: string;
 }
 
+export interface RecentDecision {
+  band: "high" | "medium" | "low" | null;
+  confidence: number;
+  decidedBy: "user" | "model";
+}
+
 export interface JevStats {
   total: number;
   byModel: number;
@@ -31,16 +37,28 @@ export interface JevStats {
   compared: number;
   agreements: number;
   agreementRate: number | null;
+  /** 5 buckets of MODEL confidence: [0-20), [20-40), [40-60), [60-80), [80-100]. */
+  histogram: number[];
+  /** the newest decisions (chronological), for a trend strip. */
+  recent: RecentDecision[];
 }
 
 /** Pure: fold a list of decision records into calibration stats. */
 export function aggregate(records: DecisionLog[]): JevStats {
   const model = records.filter((r) => r.decidedBy === "model");
   const bands = { high: 0, medium: 0, low: 0 };
-  for (const r of model) if (r.band) bands[r.band]++;
+  const histogram = [0, 0, 0, 0, 0];
+  for (const r of model) {
+    if (r.band) bands[r.band]++;
+    const conf = Number.isFinite(r.confidence) ? Math.min(1, Math.max(0, r.confidence)) : 0;
+    histogram[Math.min(4, Math.floor(conf * 5))]++;
+  }
   const meanConfidence = model.length
     ? model.reduce((s, r) => s + (Number.isFinite(r.confidence) ? r.confidence : 0), 0) / model.length
     : 0;
+  const recent: RecentDecision[] = records
+    .slice(-12)
+    .map((r) => ({ band: r.band ?? null, confidence: Number.isFinite(r.confidence) ? r.confidence : 0, decidedBy: r.decidedBy }));
 
   // regret: latest model choice vs latest user choice, per task
   const latestModel = new Map<string, string>();
@@ -67,6 +85,8 @@ export function aggregate(records: DecisionLog[]): JevStats {
     compared,
     agreements,
     agreementRate: compared ? agreements / compared : null,
+    histogram,
+    recent,
   };
 }
 

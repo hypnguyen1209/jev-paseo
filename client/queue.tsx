@@ -11,6 +11,7 @@ import { taskOptions, type JevTask } from "../shared/task";
 import { Button, Chip, Dropdown } from "./ui";
 import { font, iconSize, radius, space, weight } from "./theme";
 import { DecisionCardView } from "./card";
+import { CalibrationView } from "./calibration";
 import { JevForm } from "./form";
 import { shortModel, useJevModels, useJevTasks, type JevModel } from "./use-jev";
 
@@ -175,6 +176,7 @@ export function JevQueueScreen({
   const toast = useToast();
   const [activeModel, setActiveModelState] = useState(() => rememberedModel.get(agentId) ?? "");
   const [showAdd, setShowAdd] = useState(false);
+  const [showCalib, setShowCalib] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const editingTask = editingId ? pending.find((t) => t.id === editingId) ?? null : null;
 
@@ -338,15 +340,23 @@ export function JevQueueScreen({
       ))}
 
       {stats && stats.total > 0 ? (
-        <View style={{ flexDirection: "row", alignItems: "center", gap: space[1.5], marginTop: space[1] }}>
-          <Icon name="ChartColumn" size={iconSize.sm} color={c.foregroundMuted} />
-          <Text style={s.muted}>
-            {stats.total} decisions · {stats.byModel} model / {stats.byUser} you
-            {stats.byModel > 0 ? ` · conf ${Math.round(stats.meanConfidence * 100)}%` : ""}
-            {stats.agreementRate !== null
-              ? ` · you-vs-model agree ${Math.round(stats.agreementRate * 100)}% (${stats.compared})`
-              : ""}
-          </Text>
+        <View style={{ gap: space[1], marginTop: space[1] }}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityState={{ expanded: showCalib }}
+            hitSlop={6}
+            onPress={() => setShowCalib((v) => !v)}
+            style={{ flexDirection: "row", alignItems: "center", gap: space[1.5] }}
+          >
+            <Icon name="ChartColumn" size={iconSize.sm} color={c.foregroundMuted} />
+            <Text style={[s.muted, { flex: 1 }]}>
+              {stats.total} decisions · {stats.byModel} model / {stats.byUser} you
+              {stats.byModel > 0 ? ` · conf ${Math.round(stats.meanConfidence * 100)}%` : ""}
+              {stats.agreementRate !== null ? ` · agree ${Math.round(stats.agreementRate * 100)}%` : ""}
+            </Text>
+            <Icon name={showCalib ? "ChevronDown" : "ChevronRight"} size={iconSize.sm} color={c.foregroundMuted} />
+          </Pressable>
+          {showCalib ? <CalibrationView theme={theme} stats={stats} /> : null}
         </View>
       ) : null}
     </ScrollView>
