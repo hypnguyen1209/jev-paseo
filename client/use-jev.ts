@@ -28,6 +28,8 @@ export type JevStats = {
 export interface JevModel {
   id: string;
   label: string;
+  /** The provider (agent harness) that serves this model: claude, codex, pi, minimax, etc. */
+  provider: string;
 }
 
 /** Show just the model half of `provider/model` on chips so they don't overflow the popover. */
@@ -42,7 +44,7 @@ export function useJevModels(): { models: JevModel[]; note: string | null } {
     void listModels({})
       .then((r) => {
         if (!live) return;
-        setModels(r.models.map((m) => ({ id: m.id, label: shortModel(m.id) })));
+        setModels(r.models.map((m) => ({ id: m.id, label: shortModel(m.id), provider: m.provider })));
         setNote(r.note ?? null);
       })
       .catch((e) => {

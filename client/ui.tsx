@@ -40,6 +40,8 @@ export function Chip({
 export interface DropdownItem {
   key: string;
   label: string;
+  /** Muted trailing tag, e.g. the provider / agent harness behind a model. */
+  hint?: string;
 }
 
 /**
@@ -86,6 +88,7 @@ export function Dropdown({
         <Text style={{ color: c.foreground, fontWeight: "600", flex: 1 }} numberOfLines={1}>
           {selected?.label ?? placeholder ?? "—"}
         </Text>
+        {selected?.hint ? <Text style={{ color: c.foregroundMuted, fontSize: 11 }}>{selected.hint}</Text> : null}
         <Text style={{ color: c.foregroundMuted, fontSize: 12 }}>{items.length}</Text>
         <Text style={{ color: c.foregroundMuted }}>{open ? "▲" : "▼"}</Text>
       </Pressable>
@@ -103,6 +106,9 @@ export function Dropdown({
                     setOpen(false);
                   }}
                   style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    gap: 8,
                     paddingHorizontal: 10,
                     paddingVertical: 9,
                     backgroundColor: active ? c.surface2 : "transparent",
@@ -111,12 +117,13 @@ export function Dropdown({
                   }}
                 >
                   <Text
-                    style={{ color: active ? c.foreground : c.foregroundMuted, fontWeight: active ? "700" : "400" }}
+                    style={{ color: active ? c.foreground : c.foregroundMuted, fontWeight: active ? "700" : "400", flex: 1 }}
                     numberOfLines={1}
                   >
                     {active ? "● " : ""}
                     {it.label}
                   </Text>
+                  {it.hint ? <Text style={{ color: c.foregroundMuted, fontSize: 11 }}>{it.hint}</Text> : null}
                 </Pressable>
               );
             })}

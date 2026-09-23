@@ -168,7 +168,7 @@ export function JevQueueScreen({
       <Dropdown
         theme={theme}
         label="decide with"
-        items={[{ key: "", label: "default" }, ...models.map((m) => ({ key: m.id, label: m.label }))]}
+        items={[{ key: "", label: "default" }, ...models.map((m) => ({ key: m.id, label: m.label, hint: m.provider }))]}
         selectedKey={activeModel}
         onSelect={setActiveModel}
         placeholder="default"

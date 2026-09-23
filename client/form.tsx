@@ -6,7 +6,7 @@ import { useSettings } from "@getpaseo/plugin/client";
 import type { PluginTheme } from "@getpaseo/plugin";
 import { jevSettings } from "../shared/settings";
 import { PRESETS, type Preset } from "../shared/presets";
-import { Chip } from "./ui";
+import { Chip, Dropdown } from "./ui";
 import { useJevModels, type AddTaskInput } from "./use-jev";
 
 type DecisionType = "choice" | "score" | "noul";
@@ -117,13 +117,14 @@ export function JevForm({
         ))}
       </ScrollView>
 
-      <Text style={s.label}>Preferred model (optional)</Text>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6 }}>
-        <Chip theme={theme} active={model === ""} label="default" onPress={() => setModel("")} />
-        {models.map((m) => (
-          <Chip key={m.id} theme={theme} active={m.id === model} label={m.label} onPress={() => setModel(m.id)} />
-        ))}
-      </ScrollView>
+      <Dropdown
+        theme={theme}
+        label="preferred model (optional)"
+        items={[{ key: "", label: "default" }, ...models.map((m) => ({ key: m.id, label: m.label, hint: m.provider }))]}
+        selectedKey={model}
+        onSelect={setModel}
+        placeholder="default"
+      />
       {models.length === 0 ? <Text style={s.muted}>{modelsNote ?? "loading models…"}</Text> : null}
 
       <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
