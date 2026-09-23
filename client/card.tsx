@@ -1,15 +1,17 @@
 // v0.1.0: the in-session decision card. Render-only; mirrors the plan-step card UX — verdict,
 // chosen answer, per-option probability bars, STRICT badge, rounds/fail-streak, confidence, model.
 import type { PluginTimelineItemProps } from "@getpaseo/plugin/client";
+import { Icon } from "@getpaseo/plugin/client/react-native";
 import { useMemo, useState } from "react";
 import { Pressable, Text, View } from "react-native";
 import type { DecisionCard } from "../shared/card";
+import { font, iconSize, radius, space, weight } from "./theme";
 
-const VERDICT_GLYPH: Record<DecisionCard["verdict"], string> = {
-  sufficient: "⚖ sufficient",
-  insufficient: "⚖ insufficient",
-  decided: "⚖ decided",
-  error: "⚠ error",
+const VERDICT_ICON: Record<DecisionCard["verdict"], string> = {
+  sufficient: "Scale",
+  insufficient: "TriangleAlert",
+  decided: "Scale",
+  error: "TriangleAlert",
 };
 
 function pct(n: number): string {
@@ -38,37 +40,37 @@ export function JevDecisionCard({ item, theme }: PluginTimelineItemProps<Decisio
   const s = useMemo(
     () => ({
       card: {
-        gap: 8,
+        gap: space[2],
         borderWidth: 1,
         borderColor: c.border,
         borderLeftWidth: 3,
         borderLeftColor: verdictColor,
-        borderRadius: 10,
-        padding: 12,
+        borderRadius: radius.lg,
+        padding: space[3],
         backgroundColor: c.surface1,
       },
-      header: { flexDirection: "row" as const, justifyContent: "space-between" as const, gap: 8 },
-      title: { color: c.foreground, fontWeight: "600" as const, flex: 1 },
+      header: { flexDirection: "row" as const, alignItems: "center" as const, gap: space[2] },
+      title: { color: c.foreground, fontWeight: weight.semibold, fontSize: font.base, flex: 1 },
       badge: {
         color: c.accentForeground,
         backgroundColor: c.accent,
-        fontSize: 10,
-        fontWeight: "700" as const,
-        paddingHorizontal: 6,
+        fontSize: font.sm,
+        fontWeight: weight.semibold,
+        paddingHorizontal: space[1.5],
         paddingVertical: 2,
-        borderRadius: 999,
+        borderRadius: radius.full,
         overflow: "hidden" as const,
       },
-      answer: { color: verdictColor, fontSize: 16, fontWeight: "700" as const },
-      row: { flexDirection: "row" as const, alignItems: "center" as const, gap: 8 },
-      optLabel: { color: c.foreground, flex: 1 },
-      optPct: { color: c.foregroundMuted, width: 44, textAlign: "right" as const },
-      track: { height: 6, borderRadius: 999, backgroundColor: c.surface2, overflow: "hidden" as const },
-      footer: { color: c.foregroundMuted, fontSize: 11 },
-      model: { color: c.foregroundMuted, fontSize: 11 },
-      why: { color: c.accent, fontSize: 12 },
-      reasoning: { color: c.foregroundMuted, fontSize: 12 },
-      note: { color: c.statusDanger, fontSize: 12 },
+      answer: { color: verdictColor, fontSize: font.lg, fontWeight: weight.bold },
+      row: { flexDirection: "row" as const, alignItems: "center" as const, gap: space[2] },
+      optLabel: { color: c.foreground, fontSize: font.base, flex: 1 },
+      optPct: { color: c.foregroundMuted, fontSize: font.sm, width: 44, textAlign: "right" as const },
+      track: { height: 6, borderRadius: radius.full, backgroundColor: c.surface2, overflow: "hidden" as const },
+      footer: { color: c.foregroundMuted, fontSize: font.sm },
+      model: { color: c.foregroundMuted, fontSize: font.sm },
+      why: { color: c.accent, fontSize: font.sm },
+      reasoning: { color: c.foregroundMuted, fontSize: font.sm },
+      note: { color: c.statusDanger, fontSize: font.sm },
     }),
     [c, verdictColor],
   );
@@ -107,11 +109,13 @@ export function JevDecisionCard({ item, theme }: PluginTimelineItemProps<Decisio
         </View>
       ))}
 
-      <Text style={s.footer}>
-        {VERDICT_GLYPH[d.verdict]} · round {d.rounds}/{d.maxRounds} · fail-streak {d.failStreak}/{d.maxRounds} ·{" "}
-        {pct(d.confidence)}
-        {d.strict ? ` · threshold ${pct(d.threshold)}` : ""}
-      </Text>
+      <View style={{ flexDirection: "row", alignItems: "center", gap: space[1.5] }}>
+        <Icon name={VERDICT_ICON[d.verdict]} size={iconSize.xs} color={verdictColor} />
+        <Text style={s.footer}>
+          {d.verdict} · round {d.rounds}/{d.maxRounds} · fail-streak {d.failStreak}/{d.maxRounds} · {pct(d.confidence)}
+          {d.strict ? ` · threshold ${pct(d.threshold)}` : ""}
+        </Text>
+      </View>
       {d.decidedBy === "user" ? (
         <Text style={s.model}>decided by you</Text>
       ) : d.model ? (

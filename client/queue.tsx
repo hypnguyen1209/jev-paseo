@@ -4,10 +4,12 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Pressable, ScrollView, Text, View } from "react-native";
 import { useSettings } from "@getpaseo/plugin/client";
+import { Icon } from "@getpaseo/plugin/client/react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
 import { jevSettings } from "../shared/settings";
 import { taskOptions, type JevTask } from "../shared/task";
-import { Chip, Dropdown } from "./ui";
+import { Button, Chip, Dropdown } from "./ui";
+import { font, iconSize, radius, space, weight } from "./theme";
 import { JevForm } from "./form";
 import { useJevModels, useJevTasks } from "./use-jev";
 
@@ -34,44 +36,44 @@ function TaskRow({
   return (
     <View
       style={{
-        gap: 8,
+        gap: space[2],
         borderWidth: 1,
         borderColor: c.border,
-        borderRadius: 8,
-        padding: 10,
+        borderRadius: radius.lg,
+        padding: space[3],
         backgroundColor: c.surface1,
       }}
     >
-      <View style={{ flexDirection: "row", gap: 8 }}>
-        <Text style={{ color: c.foreground, fontWeight: "600", flex: 1 }}>{task.instructions}</Text>
-        <Text style={{ color: c.foregroundMuted, fontSize: 11 }}>{task.type}</Text>
-        <Pressable accessibilityRole="button" onPress={() => onRemove(task.id)}>
-          <Text style={{ color: c.foregroundMuted }}>✕</Text>
+      <View style={{ flexDirection: "row", alignItems: "center", gap: space[2] }}>
+        <Text style={{ color: c.foreground, fontWeight: weight.semibold, fontSize: font.base, flex: 1 }}>
+          {task.instructions}
+        </Text>
+        <Text style={{ color: c.foregroundMuted, fontSize: font.sm }}>{task.type}</Text>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="remove task"
+          hitSlop={8}
+          onPress={() => onRemove(task.id)}
+        >
+          <Icon name="X" size={iconSize.sm} color={c.foregroundMuted} />
         </Pressable>
       </View>
 
-      <Text style={{ color: c.foregroundMuted, fontSize: 11 }}>you decide:</Text>
-      <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
+      <Text style={{ color: c.foregroundMuted, fontSize: font.sm, textTransform: "uppercase" }}>you decide</Text>
+      <View style={{ flexDirection: "row", flexWrap: "wrap", gap: space[1.5] }}>
         {opts.map((o) => (
           <Chip key={o.key} theme={theme} active={false} label={o.label} onPress={() => onResolve(task.id, o.key)} />
         ))}
       </View>
 
-      <Pressable
-        accessibilityRole="button"
+      <Button
+        theme={theme}
+        block
+        icon="Sparkles"
+        busy={busy}
         onPress={() => onJudge(task.id)}
-        disabled={busy}
-        style={{
-          borderRadius: 8,
-          paddingVertical: 8,
-          alignItems: "center",
-          backgroundColor: busy ? c.surface2 : c.accent,
-        }}
-      >
-        <Text style={{ color: busy ? c.foregroundMuted : c.accentForeground, fontWeight: "600" }}>
-          {busy ? "judging…" : `🤖 ask ${modelLabel}${task.strict ? " · STRICT" : ""}`}
-        </Text>
-      </Pressable>
+        label={busy ? "judging…" : `ask ${modelLabel}${task.strict ? " · STRICT" : ""}`}
+      />
     </View>
   );
 }
@@ -81,12 +83,12 @@ function ResolvedRow({ theme, task }: { theme: PluginTheme; task: JevTask }) {
   const r = task.result;
   const by = task.decidedBy === "user" ? "by you" : `by ${r?.model || "model"}`;
   return (
-    <View style={{ flexDirection: "row", gap: 8, paddingVertical: 3 }}>
-      <Text style={{ color: c.statusSuccess }}>✓</Text>
-      <Text style={{ color: c.foreground, flex: 1 }} numberOfLines={1}>
+    <View style={{ flexDirection: "row", alignItems: "center", gap: space[2], paddingVertical: space[1] }}>
+      <Icon name="Check" size={iconSize.sm} color={c.statusSuccess} />
+      <Text style={{ color: c.foreground, fontSize: font.base, flex: 1 }} numberOfLines={1}>
         {r?.answerLabel ?? "resolved"}
       </Text>
-      <Text style={{ color: c.foregroundMuted, fontSize: 11 }}>
+      <Text style={{ color: c.foregroundMuted, fontSize: font.sm }}>
         {r?.verdict} · {by}
       </Text>
     </View>
@@ -144,13 +146,13 @@ export function JevQueueScreen({
 
   const s = useMemo(
     () => ({
-      screen: { padding: compact ? 8 : 12, gap: 10, backgroundColor: c.surface0 },
-      header: { flexDirection: "row" as const, alignItems: "center" as const, gap: 8 },
-      title: { color: c.foreground, fontWeight: "700" as const, flex: 1 },
-      count: { color: c.accentForeground, backgroundColor: c.accent, fontSize: 11, fontWeight: "700" as const, paddingHorizontal: 6, paddingVertical: 1, borderRadius: 999, overflow: "hidden" as const },
-      label: { color: c.foregroundMuted, fontSize: 11, textTransform: "uppercase" as const },
-      muted: { color: c.foregroundMuted, fontSize: 12 },
-      note: { color: c.statusDanger, fontSize: 12 },
+      screen: { padding: compact ? space[2] : space[3], gap: space[2], backgroundColor: c.surface0 },
+      header: { flexDirection: "row" as const, alignItems: "center" as const, gap: space[2] },
+      title: { color: c.foreground, fontWeight: weight.bold, fontSize: font.lg, flex: 1 },
+      count: { color: c.accentForeground, backgroundColor: c.accent, fontSize: font.sm, fontWeight: weight.semibold, paddingHorizontal: space[1.5], paddingVertical: 2, borderRadius: radius.full, overflow: "hidden" as const },
+      label: { color: c.foregroundMuted, fontSize: font.sm, textTransform: "uppercase" as const },
+      muted: { color: c.foregroundMuted, fontSize: font.sm },
+      note: { color: c.statusDanger, fontSize: font.sm },
     }),
     [c, compact],
   );
@@ -158,6 +160,7 @@ export function JevQueueScreen({
   return (
     <ScrollView style={{ flex: 1, maxHeight: compact ? 420 : undefined }} contentContainerStyle={s.screen}>
       <View style={s.header}>
+        <Icon name="Scale" size={iconSize.md} color={c.foreground} />
         <Text style={s.title}>Judge tasks</Text>
         <Text style={s.count}>{pending.length} pending</Text>
         <Chip theme={theme} active={showAdd} label={showAdd ? "close" : "＋ new"} onPress={() => setShowAdd((v) => !v)} />
@@ -175,16 +178,14 @@ export function JevQueueScreen({
       />
 
       {pending.length > 1 ? (
-        <Pressable
-          accessibilityRole="button"
+        <Button
+          theme={theme}
+          block
+          icon="Sparkles"
+          busy={busyAll}
           onPress={onJudgeAll}
-          disabled={busyAll}
-          style={{ borderRadius: 8, paddingVertical: 8, alignItems: "center", backgroundColor: busyAll ? c.surface2 : c.accent }}
-        >
-          <Text style={{ color: busyAll ? c.foregroundMuted : c.accentForeground, fontWeight: "600" }}>
-            {busyAll ? "judging all…" : `🤖 ask all (${pending.length}) — one call`}
-          </Text>
-        </Pressable>
+          label={busyAll ? "judging all…" : `ask all (${pending.length}) · one call`}
+        />
       ) : null}
 
       {pending.length === 0 ? (
@@ -212,13 +213,16 @@ export function JevQueueScreen({
       ))}
 
       {stats && stats.total > 0 ? (
-        <Text style={[s.muted, { marginTop: 6 }]}>
-          📊 {stats.total} decisions · {stats.byModel} model / {stats.byUser} you
-          {stats.byModel > 0 ? ` · conf ${Math.round(stats.meanConfidence * 100)}%` : ""}
-          {stats.agreementRate !== null
-            ? ` · you-vs-model agree ${Math.round(stats.agreementRate * 100)}% (${stats.compared})`
-            : ""}
-        </Text>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: space[1.5], marginTop: space[1] }}>
+          <Icon name="ChartColumn" size={iconSize.sm} color={c.foregroundMuted} />
+          <Text style={s.muted}>
+            {stats.total} decisions · {stats.byModel} model / {stats.byUser} you
+            {stats.byModel > 0 ? ` · conf ${Math.round(stats.meanConfidence * 100)}%` : ""}
+            {stats.agreementRate !== null
+              ? ` · you-vs-model agree ${Math.round(stats.agreementRate * 100)}% (${stats.compared})`
+              : ""}
+          </Text>
+        </View>
       ) : null}
     </ScrollView>
   );

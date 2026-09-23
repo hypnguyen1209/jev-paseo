@@ -10,9 +10,11 @@ import {
   type PluginSurfaceProps,
   type PluginWorkspacePanelProps,
 } from "@getpaseo/plugin/client";
+import { Icon } from "@getpaseo/plugin/client/react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
 import { JevQueueScreen } from "./queue";
-import { Chip, Dropdown } from "./ui";
+import { Button, Dropdown } from "./ui";
+import { font, iconSize, space, weight } from "./theme";
 
 type Navigation = PluginSurfaceProps["navigation"];
 
@@ -102,14 +104,15 @@ function JevBoard({ theme, navigation }: { theme: PluginTheme; navigation?: Navi
 
   return (
     <View style={{ flex: 1, backgroundColor: c.surface0 }}>
-      <View style={{ padding: 16, gap: 12, borderBottomWidth: 1, borderColor: c.border }}>
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-          <Text style={{ color: c.foreground, fontSize: 18, fontWeight: "800" }}>⚖ Jev</Text>
-          <Text style={{ color: c.foregroundMuted, fontSize: 13, flex: 1 }} numberOfLines={1}>
+      <View style={{ padding: space[4], gap: space[3], borderBottomWidth: 1, borderColor: c.border }}>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: space[2] }}>
+          <Icon name="Scale" size={iconSize.lg} color={c.foreground} />
+          <Text style={{ color: c.foreground, fontSize: font.xl, fontWeight: weight.bold }}>Jev</Text>
+          <Text style={{ color: c.foregroundMuted, fontSize: font.base, flex: 1 }} numberOfLines={1}>
             {sessions.length <= 1 && selected ? selected.title : "judge-task queue"}
           </Text>
           {selected && openAgent ? (
-            <Chip theme={theme} active={false} label="open session ↗" onPress={() => openAgent({ agentId: selected.id })} />
+            <Button theme={theme} variant="ghost" icon="SquareArrowOutUpRight" label="open session" onPress={() => openAgent({ agentId: selected.id })} />
           ) : null}
         </View>
         {sessions.length > 1 ? (

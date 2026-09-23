@@ -1,12 +1,13 @@
 // v0.2.0: the "new judge task" form. Shared by the panel and the composer popover. Adds a pending
 // task to the queue; the task is later resolved by the user or a model from the queue list.
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Pressable, ScrollView, Text, TextInput, View } from "react-native";
+import { ScrollView, Text, TextInput, View } from "react-native";
 import { useSettings } from "@getpaseo/plugin/client";
 import type { PluginTheme } from "@getpaseo/plugin";
 import { jevSettings } from "../shared/settings";
 import { PRESETS, type Preset } from "../shared/presets";
-import { Chip, Dropdown } from "./ui";
+import { Button, Chip, Dropdown } from "./ui";
+import { font, radius, space } from "./theme";
 import { useJevModels, type AddTaskInput } from "./use-jev";
 
 type DecisionType = "choice" | "score" | "noul";
@@ -75,29 +76,23 @@ export function JevForm({
     }
   }, [canAdd, add, type, instructions, options, model, strict, stateText, onAdded]);
 
-  const pad = compact ? 8 : 12;
+  const pad = compact ? space[2] : space[3];
   const s = useMemo(
     () => ({
-      label: { color: c.foregroundMuted, fontSize: 11, textTransform: "uppercase" as const },
+      label: { color: c.foregroundMuted, fontSize: font.sm, textTransform: "uppercase" as const },
       input: {
         color: c.foreground,
+        fontSize: font.base,
         borderWidth: 1,
         borderColor: c.border,
-        borderRadius: 6,
-        padding: 8,
-        backgroundColor: c.surface1,
+        borderRadius: radius.md,
+        padding: space[2],
+        backgroundColor: c.surface2,
       },
-      add: {
-        borderRadius: 8,
-        padding: 10,
-        alignItems: "center" as const,
-        backgroundColor: canAdd ? c.accent : c.surface2,
-      },
-      addText: { color: canAdd ? c.accentForeground : c.foregroundMuted, fontWeight: "600" as const },
-      note: { color: c.statusDanger, fontSize: 12 },
-      muted: { color: c.foregroundMuted, fontSize: 12 },
+      note: { color: c.statusDanger, fontSize: font.sm },
+      muted: { color: c.foregroundMuted, fontSize: font.sm },
     }),
-    [c, canAdd],
+    [c],
   );
 
   const applyPreset = useCallback((p: Preset) => {
@@ -109,7 +104,7 @@ export function JevForm({
   }, []);
 
   return (
-    <View style={{ gap: 8, padding: pad, backgroundColor: c.surface1, borderRadius: 8, borderWidth: 1, borderColor: c.border }}>
+    <View style={{ gap: space[2], padding: pad, backgroundColor: c.surface1, borderRadius: radius.lg, borderWidth: 1, borderColor: c.border }}>
       <Text style={s.label}>presets (recipes)</Text>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6 }}>
         {PRESETS.map((p) => (
@@ -165,9 +160,15 @@ export function JevForm({
         />
       )}
 
-      <Pressable accessibilityRole="button" onPress={submit} disabled={!canAdd} style={s.add}>
-        <Text style={s.addText}>{busy ? "Adding…" : "＋ Add judge task"}</Text>
-      </Pressable>
+      <Button
+        theme={theme}
+        block
+        icon="Plus"
+        disabled={!canAdd}
+        busy={busy}
+        onPress={submit}
+        label={busy ? "Adding…" : "Add judge task"}
+      />
       {note ? <Text style={s.note}>{note}</Text> : null}
     </View>
   );
