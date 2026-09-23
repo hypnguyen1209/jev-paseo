@@ -7,7 +7,7 @@ export function JevQueuePopover(props: PluginButtonContentProps) {
   const agentId = props.context === "agent" ? props.agentId : "";
   const agent = useAgent(agentId, (a) => ({ cwd: a.cwd }));
   return (
-    <View style={{ width: 340, maxWidth: "100%" }}>
+    <View style={{ width: 420, maxWidth: "100%" }}>
       <JevQueueScreen
         theme={props.theme}
         workspaceId={props.workspaceId}

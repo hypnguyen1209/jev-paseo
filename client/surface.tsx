@@ -95,7 +95,9 @@ export function JevSurface({ theme, navigation }: PluginSurfaceProps) {
       <View style={{ padding: 16, gap: 12, borderBottomWidth: 1, borderColor: c.border }}>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
           <Text style={{ color: c.foreground, fontSize: 18, fontWeight: "800" }}>⚖ Jev</Text>
-          <Text style={{ color: c.foregroundMuted, fontSize: 13, flex: 1 }}>judge-task queue</Text>
+          <Text style={{ color: c.foregroundMuted, fontSize: 13, flex: 1 }} numberOfLines={1}>
+            {selected ? selected.title : "judge-task queue"}
+          </Text>
           {selected && openAgent ? (
             <Chip theme={theme} active={false} label="open session ↗" onPress={() => openAgent({ agentId: selected.id })} />
           ) : null}

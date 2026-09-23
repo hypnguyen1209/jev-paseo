@@ -30,6 +30,9 @@ export interface JevModel {
   label: string;
 }
 
+/** Show just the model half of `provider/model` on chips so they don't overflow the popover. */
+const shortModel = (id: string) => (id.includes("/") ? id.slice(id.indexOf("/") + 1) : id);
+
 export function useJevModels(): { models: JevModel[]; note: string | null } {
   const listModels = useRpc(JevModelsRpc);
   const [models, setModels] = useState<JevModel[]>([]);
@@ -39,7 +42,7 @@ export function useJevModels(): { models: JevModel[]; note: string | null } {
     void listModels({})
       .then((r) => {
         if (!live) return;
-        setModels(r.models.map((m) => ({ id: m.id, label: m.id })));
+        setModels(r.models.map((m) => ({ id: m.id, label: shortModel(m.id) })));
         setNote(r.note ?? null);
       })
       .catch((e) => {
