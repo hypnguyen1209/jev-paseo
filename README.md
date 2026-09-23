@@ -1,134 +1,160 @@
 # jev-paseo
 
-A [Paseo](https://paseo.sh) plugin: a **judge-task queue** in your session. Queue up decisions
-("judge tasks"); each one is resolved **by you** (tap an option) **or by a model** (an LLM judge on
-the model *you* pick). It reproduces the jev/kev typed-decision **contract** — but model-agnostic.
+A Paseo plugin for making small, typed decisions inside a coding session. Which fix is safer? Is the diff risky enough to block? You queue the question, then pick the answer yourself or hand it to a model. The result shows up as a card in the session timeline: a probability with a confidence band.
 
-| type | question | answer | confidence |
-|------|----------|--------|------------|
-| `choice` | pick 1 of N options | the chosen option | `(max − 1/K)/(1 − 1/K)` |
-| `score`  | rate on an ordinal scale | expected level | `1 − E\|level−mode\|/(L−1)` |
-| `noul`   | yes / no | `p(yes)` | distance from 50/50 |
+It borrows the design of **jev**, TypeSafe's "System One" decision model, but it never calls jev or any hosted decision service. Nothing to sign up for, no API key. It rebuilds jev's shape (typed questions in, a calibrated distribution out) on top of whatever LLM you already run in Paseo.
 
-The model judge is **calibrated**: with no deciding evidence it spreads probability toward
-uncertainty → low confidence → `insufficient` under STRICT, instead of a confident guess.
+## What it does
 
-## Surfaces
+A decision here is one of three shapes, borrowed from jev:
 
-- **Composer pill** — a `Jev · N` button beside the composer (N = pending tasks). Click it to open
-  the **queue popover**: every pending judge task, each with option chips (you decide) and an
-  “🤖 ask <model>” button (a model decides). Add new tasks right there with “＋ new”.
-- **Agent panel** (command center → *Jev: judge-task queue*) — the same queue, full size.
-- **Inline card** — resolving a task drops a decision card into the session timeline: the answer,
-  per-option bars, STRICT badge, `⚖ verdict · round N/max · fail-streak k/max · confidence%`, and
-  whether it was decided **by you** or by which model.
-- **Settings → Jev** — default model, STRICT default, confidence threshold, max judge rounds.
+- **choice**: pick one of N options.
+- **score**: a level on an ordered scale (returns the expected level, e.g. `3.4 (good)`).
+- **yes/no** (`noul`): the probability that the answer is yes.
 
-There is **no slash command** — the queue drives everything.
+Every answer carries a **confidence** derived from the distribution's shape, plus a **band**: *high* (act on it), *medium* (worth a second look), *low* (don't trust it). Under STRICT mode the judge re-asks until confidence clears your threshold, or it stops and returns "insufficient". That is the honest result when the evidence isn't there.
 
-## Flow
+The unit of work is a **judge task**. The queue holds the pending ones; you open it from a pill next to the composer. Resolve a task by tapping an option, or hand it to a model. That model is just a `provider/model` string, so it can be Claude Code, Codex, pi, or anything else Paseo exposes.
 
-1. Add a judge task (question + type + options, optional preferred model / evidence).
-2. It sits **pending** in the queue (the pill shows the count).
-3. Resolve it either way:
-   - **You**: tap an option chip → resolved as a user decision (100%).
-   - **A model**: tap “🤖 ask <model>” → the LLM judge runs on that model and resolves it.
-4. Either way a decision card appears in the session and the task moves to **resolved**.
+## How it fits together
 
-## STRICT multi-round judge
+Paseo plugins split across two runtimes. Client code runs inside the app, server code runs as a subprocess of the daemon, and `shared/` compiles into both. The two halves talk over Zod-typed RPCs. The server never calls a model directly. It asks the Paseo host to spin up a throwaway subagent on the model you picked.
 
-Under STRICT, each model round produces a probability distribution + confidence. A round is
-`sufficient` only if confidence ≥ threshold (default 90%); otherwise the judge re-asks with feedback
-up to `maxRounds` (default 2), tracking the fail streak. Final verdict is `sufficient` or
-`insufficient`. Non-STRICT is a single round → `decided`.
+```mermaid
+flowchart TB
+  subgraph app["Paseo app · client bundle"]
+    pill["composer pill<br/>Jev · N"]
+    panel["agent panel"]
+    setg["settings screen"]
+    card["timeline card renderer"]
+    queue["JevQueueScreen<br/>(shared by pill + panel)"]
+    pill --> queue
+    panel --> queue
+  end
 
-## How it stays model-agnostic
+  subgraph plug["Plugin · daemon subprocess"]
+    rpc["RPC handlers<br/>list / add / judge / judge-all<br/>resolve / remove / stats / models"]
+    hook["agent.turn_ended hook<br/>parses jev markers"]
+    core["judge core<br/>question → distribution → band"]
+    be["LLM backend<br/>self-report or K-vote self-consistency"]
+    store[("jev-tasks.json")]
+    logf[("jev-decisions.jsonl")]
+    rpc --> core
+    hook --> core
+    core --> be
+    rpc --> store
+    core --> store
+    core --> logf
+  end
 
-Judging a task is just a headless Paseo subagent on the chosen model:
+  subgraph host["Paseo host"]
+    prov["providers.waitForReady()"]
+    sub["agents.create()<br/>headless judge subagent"]
+    tl["timeline<br/>read evidence / append card"]
+    sess["your session agent<br/>claude · codex · pi"]
+  end
 
-```ts
-paseo.agents.create({
-  config: { provider: "anthropic/claude-sonnet-5", systemPrompt, toolPolicy: { preapproved: [] } },
-  cwd, parent: agentId, prompt, outputSchema, autoArchive: true,
-});
-// → waitForFinish() → parse the JSON distribution → confidence → card
+  queue <-->|"RPC (zod-validated)"| rpc
+  rpc --> prov
+  be --> sub
+  core --> tl
+  card -.->|renders| tl
+  sess -->|"writes a [jev] line"| hook
 ```
 
-Swap `provider` for any `provider/model` the host has — nothing else changes.
+The judge subagent runs with an empty tool policy and a system prompt that tells it to return JSON and nothing else. No reading files, no running commands. Pointing it at a full coding agent won't set off a chain of tool calls or permission prompts.
 
-## Works with — Claude Code, Codex, pi (any Paseo provider)
+The plugin also stays on Paseo's provider-neutral APIs. It reads the normalized timeline, so a Claude session and a Codex session look identical to it. "Works with claude/codex/pi" took zero per-provider code.
 
-jev-paseo uses only Paseo's **provider-neutral** APIs (the normalized timeline, `agents.create`, `agents.list`), so it works with **any agent harness Paseo runs** — no per-provider code. `claude` (Claude Code), `codex`, and `pi` are all **built-in Paseo direct providers** (`opencode`/`omp` too). Two independent roles, each can be any harness:
+## A decision, start to finish
 
-- **The session being judged** — run Claude Code / Codex / pi as a normal Paseo session. jev-paseo reads that session's timeline as *evidence* and drops decision cards into it. Identical for all three because Paseo normalizes every provider into one timeline shape.
-- **The judge model** — pick any `provider/model` in the queue's *decide with* row (`claude/…`, `codex/…`, `pi/…`), or set a default in Settings. The judge runs as a headless subagent constrained to **JSON-only, no tools** (won't read files, run commands, or trigger permission prompts), with a timeout + graceful fallback — so a coding-agent provider stays stable as a judge.
+```mermaid
+sequenceDiagram
+  autonumber
+  participant U as You / agent
+  participant Q as Queue (app)
+  participant H as Handler (daemon)
+  participant J as Judge core
+  participant M as LLM subagent
+  U->>Q: add a question / tap "ask model"
+  Q->>H: jev.judge-task (config carried in the call)
+  H->>J: judgeTask(task, config)
+  J->>J: evidence = task.state, else recent timeline text
+  loop STRICT rounds, K samples each
+    J->>M: agents.create(prompt, outputSchema)
+    M-->>J: JSON answer
+  end
+  J->>J: normalize → confidence → band → verdict
+  J-->>H: DecisionCard
+  H->>Q: append card + persist (unless shadow)
+```
 
-**Setup:** `claude` / `codex` are auto-discovered when their CLIs are installed and authenticated (`claude`, `codex` on PATH); `pi` is process-backed (already configured on this host). Once discovered they appear in jev-paseo's model picker and as session providers — nothing plugin-specific to configure.
+The call carries the config because on Paseo 0.8.0 the server can't read plugin settings on its own. The client can, so it sends them along. That keeps the backend and shadow mode working on the shipping runtime instead of falling back to defaults.
 
-**Stability tip:** judge with a *fast, small* model even while the sessions you judge are heavier Claude Code / Codex runs — the judge only returns a distribution, not code.
+## Getting a calibrated answer out of a normal model
 
-## Agents can push questions (markers)
+Here is where jev-paseo learns from jev instead of calling it. jev returns a calibrated distribution in one pass because it was trained to. We can't retrain a model, and Paseo's agents don't expose token logprobs, so this recovers the distribution by hand: ask the model the same typed question K times and count the answers. Vote share becomes the probability.
 
-An agent (Claude Code / Codex / pi) can offload a decision to jev by emitting a **marker** line in its
-output — Paseo doesn't let a plugin register an agent tool or a pre-tool-call hook, so the channel is
-a marker parsed by an `agent.turn_ended` observer:
+```mermaid
+flowchart LR
+  q["typed question<br/>choice / score / yes-no"] --> ask["ask K times<br/>answer constrained to option keys"]
+  ask --> tally["tally the votes"]
+  tally --> dist["empirical distribution"]
+  dist --> conf["confidence = how peaked it is"]
+  conf --> band["band: high / medium / low"]
+```
+
+`samples = 1` skips the voting and asks the model to report a distribution in one shot. It's fast and cheap, though a self-reported number from an LLM carries little real calibration. `samples = 3` or `5` starts to mean something, at 3 to 5 times the cost. Pick the point on that curve you can afford. Either way the answer is schema-constrained, so the model can't return an option that doesn't exist. Constrained decoding gives you jev's "can't make a type error" property.
+
+## Running it
+
+Install it as a directory plugin. You need at least one provider configured in Paseo; that provider pool is where judge models come from.
+
+```bash
+paseo plugin install ./jev-paseo
+```
+
+In a session, open the **Jev** pill next to the composer. Add a question with `＋ new`, or start from a preset (`verify`, `route`, `severity`, `guardrail`, and the rest of the common jev recipes). Resolve it by tapping an option, or pick a model under *decide with* and hit **ask**. "ask all" judges every pending task in one call. Each resolved decision becomes a card in the timeline, and the panel keeps a running log.
+
+### Letting the agent ask
+
+An agent can queue its own decisions by writing a marker line in its output:
 
 ```
 [jev] choice: Which fix is safer? | rollback | hotfix
-[jev] yn strict: Is the failing test now passing?
+[jev] yn strict: Did the failing test pass?
 [jev] score: Rate this diff's risk | trivial | low | medium | high | severe
 ```
 
-Each new marker becomes a **pending** judge task in the queue (de-duped per question), resolved by
-you or a model like any other. Configure via env on the daemon:
+Paseo won't let a plugin expose a tool to the agent or intercept a tool call before it runs. The marker is the seam that's left. An `agent.turn_ended` observer picks it up and turns it into a pending task, de-duped so asking twice doesn't queue twice. Teaching the agent to write markers is opt-in: flip `JEV_HOOK_INSTRUCT=1`, or say so in your project's `AGENTS.md` or `CLAUDE.md`. Feeding the verdict back into the agent's context is a `agents.send` follow-up I haven't built yet.
 
-| Env | Effect |
-|-----|--------|
-| `JEV_HOOK_INSTRUCT=1` | Inject the marker convention into agent system prompts (opt-in; skips jev's own judge subagents). Off by default — otherwise teach it via your project's `AGENTS.md`/`CLAUDE.md`. |
-| `JEV_HOOK_AUTOJUDGE=1` | Auto-judge marker tasks immediately (else they wait in the queue for you). |
-| `JEV_HOOK_MODEL`, `JEV_HOOK_SAMPLES` | Model + self-consistency samples the auto-judge uses (the hook is server-side and can't read the client's settings on 0.8.0). |
+### Knobs
 
-Returning the verdict *back into the agent's context* (the full "harness" loop) is intentionally out
-of scope here — that's a follow-up that would `agents.send` the result to the session.
+Settings live under **Settings → Jev**. The env vars only matter for the agent-marker path, since that runs server-side and can't read the UI settings:
 
-## Install & develop
+| Setting / env | What it does |
+|---|---|
+| Judge model | Default `provider/model` when a call doesn't override it. |
+| Samples | 1 = fast self-report; ≥3 = calibrated voting (K× cost). |
+| STRICT + threshold + max rounds | Re-judge until confidence clears the threshold, or stop and mark it insufficient. |
+| Review floor | The `medium` / `low` band cutoff. |
+| Shadow mode | Judge and log, but leave the task pending. The model's guess sits next to your own pick so the panel can show how often you two agree. |
+| `JEV_HOOK_INSTRUCT=1` | Inject the marker convention into agent prompts. |
+| `JEV_HOOK_AUTOJUDGE=1` + `JEV_HOOK_MODEL` / `JEV_HOOK_SAMPLES` | Auto-judge marker tasks instead of leaving them for you. |
+
+Tasks persist to `~/.paseo/plugin-data/jev-tasks.json`, and every decision (yours and the model's) is appended to `jev-decisions.jsonl`, which is what the agreement/regret stat reads.
+
+## What it doesn't do
+
+It is not a System One model. The distributions are only as calibrated as the model you point at them and the number of samples you pay for, so treat the confidence as a rough signal and keep your own judgment on top. Decision cards are timeline rows the daemon appends, so they survive a reconnect but not a daemon restart. The task store and the model's transcript do persist. And it gates nothing: a jev verdict advises, and you decide what to do with it.
+
+## Working on it
 
 ```bash
-paseo plugin install ./jev-paseo   # needs a provider configured in Paseo
-
 npm install
-npm run demo       # the queue end-to-end (user + model resolution) — no daemon needed
-npm test           # vitest: contract, judge loop, JSON extraction
-npm run typecheck  # tsc against the Paseo plugin SDK
+npm test        # vitest: contract math, judge loop, backends, handlers, marker parser
+npm run typecheck
+npm run demo    # the whole pipeline end to end with a scripted model, no daemon needed
 ```
 
-The decision logic (`shared/contract.ts`, `server/judge.ts`, `server/card-map.ts`) is SDK-free and
-unit-tested; the rest is thin SDK glue + React Native UI. Pending tasks persist to
-`~/.paseo/plugin-data/jev-tasks.json` (override with `JEV_TASKS_FILE`).
-
-## v0.7 — no hosted model, native calibration
-
-**No dependency on TypeSafe's jev model/API** — the judge is any LLM you already have, reproducing jev's approach natively:
-
-- **Schema-constrained typed answer** — the model can only return a declared option key / valid distribution (no out-of-enum — jev's "can't return a type error").
-- **Self-consistency** (`Settings → Jev → samples`) — set `samples ≥ 3` and the judge asks the model K times and **tallies the votes** into a calibrated empirical distribution, instead of trusting one self-reported number. `samples = 1` is the fast single-shot path.
-
-## v0.3 — fan-out & confidence bands
-
-Informed by studying the jev ecosystem (fast-jev-compaction, winnow, Canny, jev-codex-router, json-render):
-
-- **Fan-out (“ask all”)** — resolve every pending judge task in **one** model call (`jev.judge-all`), the way a System One model answers many independent questions over one shared state at once. Big speed/cost win vs one call per task.
-- **Confidence bands** — every decision now carries a band: **high** (≥ auto-accept → act), **medium** (≥ review floor → confirm/review), **low** (escalate). STRICT gates on the high band; the band is always shown on the card so you can act on it or not (both stances from the ecosystem are supported).
-
-## v0.4 — presets, shadow mode, calibration
-
-- **Preset recipes** — the “＋ new” form has one-tap recipes mirroring the ecosystem’s cookbook: `✓ verify` (Canny/citation-check), `⇄ route` (codex-router/LangChain), `▲ severity` + `⚠ guardrail` (llm_guardrails), `↕ relevant` (rerank), `⌦ keep?` (compaction/winnow).
-- **Shadow mode** (`Settings → Jev`) — judges + logs + shows a card but leaves the task **pending**, so the model’s call sits next to your own. Turn it off to have judging resolve as usual.
-- **Calibration** — every resolution (model *and* your manual picks) is appended to `~/.paseo/plugin-data/jev-decisions.jsonl`. The panel shows a live line: total decisions, model-vs-you split, mean confidence, band spread, and **you-vs-model agreement** (the regret signal — how often you overrode a shadow judgment). This is the winnow/Canny “log every decision, measure regret before you trust the gate” pattern.
-
-## Notes / limits
-
-- Decision cards are daemon-appended plugin timeline rows: they survive refetch/reconnect but are
-  in-memory (lost on daemon restart). The task store and the model transcript persist.
-- This mirrors the jev/kev *contract* (types + confidence math), not a benchmarked classifier — a
-  general LLM's calibration is only as good as the model you pick.
+The decision logic stays free of the Paseo SDK: the confidence math, the multi-round loop, the vote tally, the marker grammar. That's where the ~110 tests live. The rest is thin glue and React Native UI. CI runs these three commands on every push.
