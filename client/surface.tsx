@@ -4,7 +4,7 @@
 //   - JevSurface — a full-screen sidebar/command route.
 // Both render JevBoard: a session picker plus the full-size JevQueueScreen for the picked session.
 import { useEffect, useMemo, useState } from "react";
-import { Pressable, ScrollView, Text, View } from "react-native";
+import { Text, View } from "react-native";
 import {
   usePaseo,
   type PluginSurfaceProps,
@@ -12,7 +12,7 @@ import {
 } from "@getpaseo/plugin/client";
 import type { PluginTheme } from "@getpaseo/plugin";
 import { JevQueueScreen } from "./queue";
-import { Chip } from "./ui";
+import { Chip, Dropdown } from "./ui";
 
 type Navigation = PluginSurfaceProps["navigation"];
 
@@ -85,82 +85,6 @@ function useJevSessions(): Session[] {
   return sessions;
 }
 
-/** Session chooser as a dropdown: a narrow pane can't scroll a row of chips, a vertical list can. */
-function SessionPicker({
-  theme,
-  sessions,
-  selected,
-  onSelect,
-}: {
-  theme: PluginTheme;
-  sessions: Session[];
-  selected: Session | undefined;
-  onSelect: (id: string) => void;
-}) {
-  const c = theme.colors;
-  const [open, setOpen] = useState(false);
-  return (
-    <View style={{ gap: 6 }}>
-      <Pressable
-        accessibilityRole="button"
-        onPress={() => setOpen((v) => !v)}
-        style={{
-          flexDirection: "row",
-          alignItems: "center",
-          gap: 8,
-          borderWidth: 1,
-          borderColor: c.border,
-          backgroundColor: c.surface1,
-          borderRadius: 8,
-          paddingHorizontal: 10,
-          paddingVertical: 8,
-        }}
-      >
-        <Text style={{ color: c.foregroundMuted, fontSize: 11, textTransform: "uppercase" }}>session</Text>
-        <Text style={{ color: c.foreground, fontWeight: "600", flex: 1 }} numberOfLines={1}>
-          {selected?.title ?? "pick a session"}
-        </Text>
-        <Text style={{ color: c.foregroundMuted, fontSize: 12 }}>{sessions.length}</Text>
-        <Text style={{ color: c.foregroundMuted }}>{open ? "▲" : "▼"}</Text>
-      </Pressable>
-      {open ? (
-        <View style={{ borderWidth: 1, borderColor: c.border, borderRadius: 8, backgroundColor: c.surface1, overflow: "hidden" }}>
-          <ScrollView style={{ maxHeight: 260 }}>
-            {sessions.map((s, i) => {
-              const active = s.id === selected?.id;
-              return (
-                <Pressable
-                  key={s.id}
-                  accessibilityRole="button"
-                  onPress={() => {
-                    onSelect(s.id);
-                    setOpen(false);
-                  }}
-                  style={{
-                    paddingHorizontal: 10,
-                    paddingVertical: 9,
-                    backgroundColor: active ? c.surface2 : "transparent",
-                    borderTopWidth: i === 0 ? 0 : 1,
-                    borderColor: c.border,
-                  }}
-                >
-                  <Text
-                    style={{ color: active ? c.foreground : c.foregroundMuted, fontWeight: active ? "700" : "400" }}
-                    numberOfLines={1}
-                  >
-                    {active ? "● " : ""}
-                    {s.title}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </ScrollView>
-        </View>
-      ) : null}
-    </View>
-  );
-}
-
 /** The shared board: pick a session across the top, judge its tasks below, full width. */
 function JevBoard({ theme, navigation }: { theme: PluginTheme; navigation?: Navigation }) {
   const c = theme.colors;
@@ -189,7 +113,14 @@ function JevBoard({ theme, navigation }: { theme: PluginTheme; navigation?: Navi
           ) : null}
         </View>
         {sessions.length > 1 ? (
-          <SessionPicker theme={theme} sessions={sessions} selected={selected} onSelect={setSelectedId} />
+          <Dropdown
+            theme={theme}
+            label="session"
+            items={sessions.map((s) => ({ key: s.id, label: s.title }))}
+            selectedKey={selected?.id ?? ""}
+            onSelect={setSelectedId}
+            placeholder="pick a session"
+          />
         ) : null}
       </View>
 

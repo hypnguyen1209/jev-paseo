@@ -7,7 +7,7 @@ import { useSettings } from "@getpaseo/plugin/client";
 import type { PluginTheme } from "@getpaseo/plugin";
 import { jevSettings } from "../shared/settings";
 import { taskOptions, type JevTask } from "../shared/task";
-import { Chip } from "./ui";
+import { Chip, Dropdown } from "./ui";
 import { JevForm } from "./form";
 import { useJevModels, useJevTasks } from "./use-jev";
 
@@ -165,26 +165,14 @@ export function JevQueueScreen({
 
       {showAdd ? <JevForm theme={theme} add={add} compact={compact} onAdded={() => setShowAdd(false)} /> : null}
 
-      <Text style={s.label}>decide with</Text>
-      {(() => {
-        const chips = (
-          <>
-            <Chip theme={theme} active={activeModel === ""} label="default" onPress={() => setActiveModel("")} />
-            {models.map((m) => (
-              <Chip key={m.id} theme={theme} active={m.id === activeModel} label={m.label} onPress={() => setActiveModel(m.id)} />
-            ))}
-          </>
-        );
-        // Compact popover: scroll a single row. Wide tab/surface: wrap so every model stays reachable
-        // (a horizontal row can get clipped in a narrow pane with no working horizontal scroll).
-        return compact ? (
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6 }}>
-            {chips}
-          </ScrollView>
-        ) : (
-          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>{chips}</View>
-        );
-      })()}
+      <Dropdown
+        theme={theme}
+        label="decide with"
+        items={[{ key: "", label: "default" }, ...models.map((m) => ({ key: m.id, label: m.label }))]}
+        selectedKey={activeModel}
+        onSelect={setActiveModel}
+        placeholder="default"
+      />
 
       {pending.length > 1 ? (
         <Pressable
