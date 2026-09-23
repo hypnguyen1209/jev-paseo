@@ -1,0 +1,186 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>jev-paseo — UI preview</title>
+<style>
+  /* Colors approximate Paseo's dark theme; in the real app they come from theme.colors.* */
+  :root{
+    --surface0:#0f1216; --surface1:#171b21; --surface2:#232a33; --border:#2c333d;
+    --fg:#e6e9ee; --fgMuted:#8b95a3; --accent:#6ea8fe; --accentFg:#0b1220;
+    --success:#4ade80; --warning:#fbbf24; --danger:#f87171;
+    font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:#07090c;color:var(--fg);display:flex;min-height:100vh;justify-content:center}
+  .app{width:760px;max-width:100%;display:flex;flex-direction:column;height:100vh;background:var(--surface0)}
+  .banner{padding:10px 16px;background:var(--surface1);border-bottom:1px solid var(--border);font-size:13px;color:var(--fgMuted)}
+  .banner b{color:var(--fg)}
+  .timeline{flex:1;overflow:auto;padding:16px;display:flex;flex-direction:column;gap:12px}
+  .msg{color:var(--fgMuted);font-size:13px}
+  .composer{border-top:1px solid var(--border);padding:12px 16px;background:var(--surface0);position:relative}
+  .input{border:1px solid var(--border);border-radius:10px;background:var(--surface1);color:var(--fgMuted);padding:12px}
+  .pills{display:flex;gap:8px;margin-top:8px;align-items:center}
+  .pill{display:inline-flex;gap:6px;align-items:center;border:1px solid var(--border);background:var(--surface2);
+        color:var(--fg);border-radius:999px;padding:6px 12px;font-size:13px;cursor:pointer}
+  .pill.jev{background:var(--accent);color:var(--accentFg);border-color:var(--accent);font-weight:600}
+  /* popover */
+  .popover{position:absolute;bottom:64px;left:16px;width:360px;max-height:70vh;overflow:auto;background:var(--surface0);
+           border:1px solid var(--border);border-radius:12px;box-shadow:0 12px 40px rgba(0,0,0,.5);padding:12px;display:none}
+  .popover.open{display:block}
+  .row{display:flex;align-items:center;gap:8px}
+  .title{font-weight:700}
+  .count{background:var(--accent);color:var(--accentFg);font-size:11px;font-weight:700;border-radius:999px;padding:1px 8px}
+  .label{color:var(--fgMuted);font-size:11px;text-transform:uppercase;margin:8px 0 4px}
+  .chips{display:flex;gap:6px;flex-wrap:wrap}
+  .chips.scroll{flex-wrap:nowrap;overflow:auto;padding-bottom:4px}
+  .chip{border:1px solid var(--border);background:var(--surface2);color:var(--fg);border-radius:999px;
+        padding:4px 10px;font-size:12px;cursor:pointer;white-space:nowrap}
+  .chip.active{background:var(--accent);color:var(--accentFg);border-color:var(--accent)}
+  .task{border:1px solid var(--border);border-radius:8px;background:var(--surface1);padding:10px;display:flex;flex-direction:column;gap:8px;margin-bottom:8px}
+  .task .type{color:var(--fgMuted);font-size:11px}
+  .x{color:var(--fgMuted);cursor:pointer}
+  .ask{border:none;border-radius:8px;background:var(--accent);color:var(--accentFg);font-weight:600;padding:8px;cursor:pointer}
+  .resolved{display:flex;gap:8px;padding:3px 0;font-size:13px}
+  .ok{color:var(--success)}
+  /* card */
+  .card{border:1px solid var(--border);border-left:3px solid var(--accent);border-radius:10px;background:var(--surface1);padding:12px;display:flex;flex-direction:column;gap:8px}
+  .card.suf{border-left-color:var(--success)} .card.insuf{border-left-color:var(--warning)} .card.dec{border-left-color:var(--accent)}
+  .card .q{font-weight:600}
+  .badge{background:var(--accent);color:var(--accentFg);font-size:10px;font-weight:700;border-radius:999px;padding:2px 6px}
+  .answer{font-size:16px;font-weight:700}
+  .answer.suf{color:var(--success)} .answer.insuf{color:var(--warning)} .answer.dec{color:var(--accent)}
+  .opt{display:flex;flex-direction:column;gap:3px}
+  .optrow{display:flex;gap:8px;align-items:center}
+  .optlabel{flex:1} .optpct{width:44px;text-align:right;color:var(--fgMuted)}
+  .track{height:6px;border-radius:999px;background:var(--surface2);overflow:hidden}
+  .fill{height:6px;border-radius:999px}
+  .foot{color:var(--fgMuted);font-size:11px}
+  .form{border:1px solid var(--border);border-radius:8px;background:var(--surface1);padding:8px;display:flex;flex-direction:column;gap:8px;margin-bottom:8px}
+  .form input,.form textarea{background:var(--surface2);border:1px solid var(--border);color:var(--fg);border-radius:6px;padding:8px;font-family:inherit}
+  .hidden{display:none}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="banner">Preview of the <b>Paseo</b> plugin UI (react-native components, dark theme). In Claude Code you won't see this — it renders inside the Paseo app.</div>
+  <div class="timeline" id="timeline">
+    <div class="msg">— session timeline — resolved decisions drop in here as cards —</div>
+  </div>
+  <div class="composer">
+    <div class="popover" id="popover"></div>
+    <div class="input">Message the agent, tag @files, or use /commands…</div>
+    <div class="pills">
+      <span class="pill jev" id="pill" onclick="togglePopover()">⚖ Jev · <span id="pcount">3</span></span>
+      <span class="pill">＋</span><span class="pill">Opus 4.8 1M ▾</span>
+    </div>
+  </div>
+</div>
+<script>
+const models = ["anthropic/claude-sonnet-5","openai/gpt-5.5","codex/gpt-5"];
+let activeModel = "";               // "" = default
+let showAdd = false;
+let tasks = [
+  { id:"t1", type:"choice", strict:false, q:"Which fix is safer?", options:["rollback","hotfix"] },
+  { id:"t2", type:"noul",  strict:true,  q:"Did the failing test pass after the patch?", options:[] },
+  { id:"t4", type:"score", strict:false, q:"Rate this diff's risk", options:["trivial","low","medium","high","severe"] },
+];
+let resolved = [];
+
+function optionsOf(t){
+  if(t.type==="noul") return [{key:"no",label:"no"},{key:"yes",label:"yes"}];
+  if(t.type==="score") return t.options.map((l,i)=>({key:String(i),label:l}));
+  return t.options.map((l,i)=>({key:"o"+i,label:l}));
+}
+const pct = n => Math.round(Math.max(0,Math.min(1,n))*100)+"%";
+
+// canned "model judge" results (a real model would produce these)
+const modelResult = {
+  t2:{verdict:"sufficient",cls:"suf",answer:"yes · 97%",rounds:2,fail:1,conf:.94,
+      opts:[{l:"no",p:.03},{l:"yes",p:.97}]},
+  t4:{verdict:"decided",cls:"dec",answer:"2.7 — high",rounds:1,fail:0,conf:.87,
+      opts:[{l:"trivial",p:.02},{l:"low",p:.08},{l:"medium",p:.2},{l:"high",p:.6},{l:"severe",p:.1}]},
+  t1:{verdict:"sufficient",cls:"suf",answer:"rollback · 90%",rounds:1,fail:0,conf:.8,
+      opts:[{l:"rollback",p:.9},{l:"hotfix",p:.1}]},
+};
+
+function addCard(c){
+  const tl = document.getElementById("timeline");
+  const el = document.createElement("div");
+  const maxp = Math.max(...c.opts.map(o=>o.p));
+  el.className = "card "+c.cls;
+  el.innerHTML =
+    `<div class="row"><span class="q" style="flex:1">${c.q}</span>${c.strict?'<span class="badge">STRICT</span>':''}</div>`+
+    `<div class="answer ${c.cls}">${c.answer}</div>`+
+    c.opts.map(o=>`<div class="opt"><div class="optrow"><span class="optlabel" style="${o.p===maxp?'font-weight:700':''}">${o.l}</span><span class="optpct">${pct(o.p)}</span></div><div class="track"><div class="fill" style="width:${Math.round(o.p*100)}%;background:${o.p===maxp?'var(--'+ (c.cls==='suf'?'success':c.cls==='insuf'?'warning':'accent') +')':'var(--fgMuted)'}"></div></div></div>`).join("")+
+    `<div class="foot">⚖ ${c.verdict} · round ${c.rounds}/${c.maxRounds||c.rounds||2} · fail-streak ${c.fail}/${c.maxRounds||2} · ${pct(c.conf)}${c.strict?` · threshold 90%`:''}</div>`+
+    `<div class="foot">${c.by}</div>`;
+  tl.appendChild(el); tl.scrollTop = tl.scrollHeight;
+}
+
+function resolveUser(id, key){
+  const t = tasks.find(x=>x.id===id); const opt = optionsOf(t).find(o=>o.key===key);
+  tasks = tasks.filter(x=>x.id!==id);
+  resolved.unshift({answer:(opt?opt.label:key)+" · 100%", verdict:"decided", by:"by you"});
+  addCard({q:t.q,strict:t.strict,cls:"dec",verdict:"decided",rounds:0,fail:0,maxRounds:0,conf:1,
+           answer:(opt?opt.label:key)+" · 100%",opts:optionsOf(t).map(o=>({l:o.label,p:o.key===key?1:0})),by:"decided by you"});
+  render();
+}
+function resolveModel(id){
+  const t = tasks.find(x=>x.id===id); const r = modelResult[id] || modelResult.t1;
+  const model = activeModel || t.model || "anthropic/claude-sonnet-5";
+  tasks = tasks.filter(x=>x.id!==id);
+  resolved.unshift({answer:r.answer, verdict:r.verdict, by:"by "+model});
+  addCard({q:t.q,strict:t.strict,cls:r.cls,verdict:r.verdict,rounds:r.rounds,fail:r.fail,maxRounds:2,conf:r.conf,
+           answer:r.answer,opts:r.opts,by:"model: "+model});
+  render();
+}
+function removeTask(id){ tasks = tasks.filter(x=>x.id!==id); render(); }
+function addTask(){
+  const q = document.getElementById("na_q").value.trim();
+  const type = document.getElementById("na_type").value;
+  const opts = document.getElementById("na_opts").value.split("\n").map(s=>s.trim()).filter(Boolean);
+  if(!q || (type!=="noul" && opts.length<2)){ document.getElementById("na_err").textContent="Enter a question"+(type!=="noul"?" + ≥2 options":""); return; }
+  tasks.unshift({id:"n"+Date.now(),type,strict:document.getElementById("na_strict").checked,q,options:opts,model:activeModel||undefined});
+  showAdd=false; render();
+}
+function togglePopover(){ document.getElementById("popover").classList.toggle("open"); render(); }
+function toggleAdd(){ showAdd=!showAdd; render(); }
+function pickModel(m){ activeModel=m; render(); }
+
+function render(){
+  document.getElementById("pcount").textContent = tasks.length;
+  const p = document.getElementById("popover");
+  const modelChips = `<div class="label">decide with</div><div class="chips scroll">`+
+    `<span class="chip ${activeModel===''?'active':''}" onclick="pickModel('')">default</span>`+
+    models.map(m=>`<span class="chip ${activeModel===m?'active':''}" onclick="pickModel('${m}')">${m}</span>`).join("")+`</div>`;
+  const addForm = showAdd ? `<div class="form">
+      <input id="na_q" placeholder="Question — e.g. Is the login bug actually fixed?"/>
+      <div class="row"><select id="na_type" style="background:var(--surface2);color:var(--fg);border:1px solid var(--border);border-radius:6px;padding:6px">
+        <option value="choice">choice</option><option value="score">score</option><option value="noul">yes / no</option></select>
+        <label style="font-size:12px;color:var(--fgMuted)"><input type="checkbox" id="na_strict" checked/> STRICT</label></div>
+      <textarea id="na_opts" rows="2" placeholder="options, one per line (choice/score)"></textarea>
+      <div id="na_err" style="color:var(--danger);font-size:12px"></div>
+      <button class="ask" onclick="addTask()">＋ Add judge task</button></div>` : "";
+  const taskList = tasks.length? tasks.map(t=>{
+    const opts = optionsOf(t);
+    const model = activeModel || t.model || "default";
+    return `<div class="task">
+      <div class="row"><span style="flex:1;font-weight:600">${t.q}</span><span class="type">${t.type}${t.strict?" · STRICT":""}</span><span class="x" onclick="removeTask('${t.id}')">✕</span></div>
+      <div class="label">you decide:</div>
+      <div class="chips">${opts.map(o=>`<span class="chip" onclick="resolveUser('${t.id}','${o.key}')">${o.label}</span>`).join("")}</div>
+      <button class="ask" onclick="resolveModel('${t.id}')">🤖 ask ${model}${t.strict?" · STRICT":""}</button>
+    </div>`;
+  }).join("") : `<div class="msg">No pending judge tasks. Add one with “＋ new”.</div>`;
+  const resolvedList = resolved.length? `<div class="label">resolved</div>`+resolved.slice(0,5).map(r=>
+      `<div class="resolved"><span class="ok">✓</span><span style="flex:1">${r.answer}</span><span style="color:var(--fgMuted);font-size:11px">${r.verdict} · ${r.by}</span></div>`).join("") : "";
+  p.innerHTML =
+    `<div class="row"><span class="title" style="flex:1">Judge tasks</span><span class="count">${tasks.length} pending</span>
+      <span class="chip ${showAdd?'active':''}" onclick="toggleAdd()">${showAdd?'close':'＋ new'}</span></div>`+
+    addForm + modelChips + taskList + resolvedList;
+}
+render();
+</script>
+</body>
+</html>

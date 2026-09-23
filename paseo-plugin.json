@@ -1,0 +1,6 @@
+{
+  "id": "jev",
+  "requirements": {
+    "paseo": ">=0.8.0"
+  }
+}
