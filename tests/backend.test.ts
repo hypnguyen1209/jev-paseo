@@ -18,6 +18,19 @@ describe("makeLlmBackend — self-report (samples=1)", () => {
     const arr: AskFn = async () => JSON.stringify({ answers: { a: { probabilities: [0.1, 0.9] } } });
     expect((await makeLlmBackend("m", arr).evaluate("s", { a: q })).a.probabilities).toEqual({});
   });
+  it("keeps well-formed considerations and drops malformed ones", async () => {
+    const ask: AskFn = async () =>
+      JSON.stringify({
+        answers: {
+          a: {
+            probabilities: { no: 0.2, yes: 0.8 },
+            considerations: [{ q: "Does the log show a pass?", a: "Yes, exit 0." }, { q: "bad" }, "nope"],
+          },
+        },
+      });
+    const out = await makeLlmBackend("m", ask).evaluate("s", { a: q });
+    expect(out.a.considerations).toEqual([{ q: "Does the log show a pass?", a: "Yes, exit 0." }]);
+  });
 });
 
 describe("makeLlmBackend — self-consistency (samples>1)", () => {
@@ -30,6 +43,15 @@ describe("makeLlmBackend — self-consistency (samples>1)", () => {
     const out = await be.evaluate("s", { a: q });
     expect(out.a.probabilities.yes).toBeCloseTo(0.75);
     expect(out.a.probabilities.no).toBeCloseTo(0.25);
+  });
+  it("summarizes the vote tally as reasoning (no per-vote prose)", async () => {
+    const replies = ["yes", "yes", "yes", "no"];
+    let i = 0;
+    const ask: AskFn = async () => JSON.stringify({ answers: { a: { choice: replies[i++] } } });
+    const out = await makeLlmBackend("m", ask, 4).evaluate("s", { a: q });
+    expect(out.a.reasoning).toContain("Sampled 4 times");
+    expect(out.a.reasoning).toContain("75%");
+    expect(out.a.considerations).toBeUndefined();
   });
   it("makes exactly K calls", async () => {
     let calls = 0;

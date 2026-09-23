@@ -22,6 +22,8 @@ export const DecisionCardSchema = z.object({
   answerLabel: z.string(),
   options: z.array(z.object({ key: z.string(), label: z.string(), prob: z.number() })),
   reasoning: z.string(),
+  /** The judge's self-posed questions and answers — the "why", made legible in the card detail. */
+  rationale: z.array(z.object({ q: z.string(), a: z.string() })).optional(),
   note: z.string().optional(),
   /** who made the call: the user (manual pick) or the chosen model (LLM judge). */
   decidedBy: z.enum(["user", "model"]).optional(),

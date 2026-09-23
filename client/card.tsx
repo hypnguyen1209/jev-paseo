@@ -124,12 +124,31 @@ export function JevDecisionCard({ item, theme }: PluginTimelineItemProps<Decisio
 
       {d.note ? <Text style={s.note}>{d.note}</Text> : null}
 
-      {d.reasoning ? (
+      {d.rationale?.length || d.reasoning ? (
         <>
-          <Pressable accessibilityRole="button" onPress={() => setShowWhy((v) => !v)}>
-            <Text style={s.why}>{showWhy ? "hide reasoning" : "why?"}</Text>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityState={{ expanded: showWhy }}
+            hitSlop={6}
+            onPress={() => setShowWhy((v) => !v)}
+            style={{ flexDirection: "row", alignItems: "center", gap: space[1] }}
+          >
+            <Icon name={showWhy ? "ChevronDown" : "ChevronRight"} size={iconSize.sm} color={c.accent} />
+            <Text style={s.why}>{showWhy ? "hide reasoning" : "why? · context"}</Text>
           </Pressable>
-          {showWhy ? <Text style={s.reasoning}>{d.reasoning}</Text> : null}
+          {showWhy ? (
+            <View style={{ gap: space[2], paddingLeft: space[1] }}>
+              {d.rationale?.map((r, i) => (
+                <View key={i} style={{ gap: 2 }}>
+                  <Text style={{ color: c.foreground, fontSize: font.sm, fontWeight: weight.semibold }}>{r.q}</Text>
+                  <Text style={{ color: c.foregroundMuted, fontSize: font.sm }}>{r.a}</Text>
+                </View>
+              ))}
+              {d.reasoning ? (
+                <Text style={[s.reasoning, d.rationale?.length ? { fontStyle: "italic" } : null]}>{d.reasoning}</Text>
+              ) : null}
+            </View>
+          ) : null}
         </>
       ) : null}
     </View>

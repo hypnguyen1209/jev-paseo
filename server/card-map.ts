@@ -49,6 +49,7 @@ export function toCard(r: JudgeResult): DecisionCard {
     answerLabel: answerLabel(r),
     options: r.options.map((o) => ({ key: o.key, label: o.label, prob: r.decision.probabilities[o.key] ?? 0 })),
     reasoning: r.reasoning,
+    rationale: r.considerations,
     decidedBy: "model",
     createdAt: new Date().toISOString(),
   };

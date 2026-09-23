@@ -129,6 +129,10 @@ describe("buildBatchSchema", () => {
     const s = buildBatchSchema({ t1: choiceQ }) as any;
     expect(s.properties.answers.required).toEqual(["t1"]);
     expect(s.properties.answers.properties.t1.properties.probabilities.required).toEqual(["rollback", "hotfix"]);
+    // considerations: an optional array of {q,a} for the human-readable "why"
+    const cons = s.properties.answers.properties.t1.properties.considerations;
+    expect(cons.type).toBe("array");
+    expect(cons.items.required).toEqual(["q", "a"]);
   });
 });
 
@@ -178,5 +182,6 @@ describe("buildBatchPrompt", () => {
     expect(p).toContain("## qb");
     expect(p).toContain('"answers"');
     expect(p).toContain("untrusted"); // prompt-injection guard
+    expect(p).toContain("considerations"); // asks for the human-readable self-Q&A
   });
 });

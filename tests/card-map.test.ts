@@ -5,14 +5,14 @@ import type { JudgeBackend, RawAnswer } from "../server/backend";
 
 const base = { state: "s", model: "prov/x", strict: false, threshold: 0.9, reviewFloor: 0.6, maxRounds: 1 };
 
-/** Backend that answers every question with a fixed distribution. */
-function fixed(probs: Record<string, number>): JudgeBackend {
+/** Backend that answers every question with a fixed distribution (+ optional considerations). */
+function fixed(probs: Record<string, number>, considerations?: { q: string; a: string }[]): JudgeBackend {
   return {
     label: "fixed",
     multiRound: false,
     async evaluate(_s, questions) {
       const out: Record<string, RawAnswer> = {};
-      for (const id of Object.keys(questions)) out[id] = { probabilities: probs, reasoning: "because" };
+      for (const id of Object.keys(questions)) out[id] = { probabilities: probs, reasoning: "because", considerations };
       return out;
     },
   };
@@ -54,6 +54,13 @@ describe("answerLabel + toCard (through real runJudge)", () => {
       { key: "o1", label: "hotfix", prob: 0.1 },
     ]);
     expect(typeof c.createdAt).toBe("string");
+  });
+
+  it("carries the judge's considerations onto the card as rationale", async () => {
+    const q = buildQuestion("noul", "shipped?", [])!;
+    const considerations = [{ q: "Do the tests pass?", a: "Yes, the run log shows exit 0." }];
+    const c = toCard(await runJudge({ ...base, question: q, backend: fixed({ no: 0.1, yes: 0.9 }, considerations) }));
+    expect(c.rationale).toEqual(considerations);
   });
 
   it("noul → yes / no labels", async () => {

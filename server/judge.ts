@@ -7,6 +7,7 @@ import {
   normalizeDistribution,
   optionsOf,
   type Band,
+  type Consideration,
   type Decision,
   type Option,
   type Question,
@@ -18,6 +19,7 @@ export interface JudgeRound {
   confidence: number;
   band: Band;
   reasoning: string;
+  considerations?: Consideration[];
   sufficient: boolean;
 }
 
@@ -37,6 +39,7 @@ export interface JudgeResult {
   confidence: number;
   band: Band;
   reasoning: string;
+  considerations?: Consideration[];
   history: JudgeRound[];
 }
 
@@ -58,6 +61,7 @@ function resultOf(args: {
   rounds: number;
   failStreak: number;
   reasoning: string;
+  considerations?: Consideration[];
   history: JudgeRound[];
   sufficient: boolean;
 }): JudgeResult {
@@ -79,6 +83,7 @@ function resultOf(args: {
     confidence: args.decision.confidence,
     band,
     reasoning: args.reasoning,
+    considerations: args.considerations,
     history: args.history,
   };
 }
@@ -105,6 +110,7 @@ export async function runJudge(input: JudgeInput): Promise<JudgeResult> {
   let feedback: string | undefined;
   let decision = assemble(question, normalizeDistribution({}, keys));
   let reasoning = "";
+  let considerations: Consideration[] | undefined;
 
   for (let round = 1; round <= maxRounds; round++) {
     const q = feedback ? withFeedback(question, feedback) : question;
@@ -112,6 +118,7 @@ export async function runJudge(input: JudgeInput): Promise<JudgeResult> {
     const raw = answers.main ?? { probabilities: {} };
     decision = assemble(question, normalizeDistribution(raw.probabilities, keys));
     reasoning = raw.reasoning ?? "";
+    considerations = raw.considerations;
     const confidence = decision.confidence;
     const sufficient = !strict || confidence >= threshold;
     history.push({
@@ -119,6 +126,7 @@ export async function runJudge(input: JudgeInput): Promise<JudgeResult> {
       confidence,
       band: bandOf(confidence, threshold, reviewFloor),
       reasoning,
+      considerations,
       sufficient,
     });
     if (sufficient) break;
@@ -140,6 +148,7 @@ export async function runJudge(input: JudgeInput): Promise<JudgeResult> {
     rounds: history.length,
     failStreak,
     reasoning,
+    considerations,
     history,
     sufficient: last.sufficient,
   });
@@ -183,6 +192,7 @@ export async function runBatchJudge(input: BatchInput): Promise<Record<string, J
       confidence: decision.confidence,
       band: bandOf(decision.confidence, threshold, reviewFloor),
       reasoning: raw.reasoning ?? "",
+      considerations: raw.considerations,
       sufficient,
     };
     out[t.id] = resultOf({
@@ -196,6 +206,7 @@ export async function runBatchJudge(input: BatchInput): Promise<Record<string, J
       rounds: 1,
       failStreak: sufficient ? 0 : 1,
       reasoning: raw.reasoning ?? "",
+      considerations: raw.considerations,
       history: [round],
       sufficient,
     });

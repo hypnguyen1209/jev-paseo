@@ -8,7 +8,9 @@ import {
   buildVotePrompt,
   buildVoteSchema,
   JUDGE_SYSTEM_PROMPT,
+  optionsOf,
   tallyVotes,
+  type Consideration,
   type Question,
 } from "../shared/contract";
 import { extractJson } from "../shared/model-json";
@@ -17,6 +19,21 @@ import { extractJson } from "../shared/model-json";
 export interface RawAnswer {
   probabilities: Record<string, number>;
   reasoning?: string;
+  /** The model's self-posed Q&A explaining the call, surfaced in the card detail. */
+  considerations?: Consideration[];
+}
+
+/** Keep only well-formed {q,a} pairs the model returned; cap so a card can't be flooded. */
+function coerceConsiderations(v: unknown): Consideration[] | undefined {
+  if (!Array.isArray(v)) return undefined;
+  const out: Consideration[] = [];
+  for (const x of v) {
+    if (x && typeof x === "object" && typeof (x as Consideration).q === "string" && typeof (x as Consideration).a === "string") {
+      out.push({ q: (x as Consideration).q, a: (x as Consideration).a });
+    }
+    if (out.length >= 6) break;
+  }
+  return out.length ? out : undefined;
 }
 
 export interface JudgeBackend {
@@ -54,6 +71,7 @@ export function makeLlmBackend(model: string, ask: AskFn, samples = 1): JudgeBac
           out[id] = {
             probabilities: probs && typeof probs === "object" && !Array.isArray(probs) ? (probs as Record<string, number>) : {},
             reasoning: typeof a.reasoning === "string" ? a.reasoning : undefined,
+            considerations: coerceConsiderations(a.considerations),
           };
         }
         return out;
@@ -75,7 +93,19 @@ export function makeLlmBackend(model: string, ask: AskFn, samples = 1): JudgeBac
       });
       const probs = tallyVotes(votes, questions);
       const out: Record<string, RawAnswer> = {};
-      for (const id of Object.keys(questions)) out[id] = { probabilities: probs[id] ?? {} };
+      for (const id of Object.keys(questions)) {
+        const dist = probs[id] ?? {};
+        const entries = Object.entries(dist);
+        // The vote path returns only choices (no per-vote prose), so summarize the tally as the
+        // reasoning: which option led and how strongly the K votes agreed.
+        let reasoning: string | undefined;
+        if (entries.length) {
+          const [winKey, winShare] = entries.reduce((best, e) => (e[1] > best[1] ? e : best));
+          const label = optionsOf(questions[id]).find((o) => o.key === winKey)?.label ?? winKey;
+          reasoning = `Sampled ${k} times; "${label}" led with ${Math.round(winShare * 100)}% agreement across votes.`;
+        }
+        out[id] = { probabilities: dist, reasoning };
+      }
       return out;
     },
   };
