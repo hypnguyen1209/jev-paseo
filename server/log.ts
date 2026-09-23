@@ -1,7 +1,7 @@
 // v0.4.0: append-only decision log + calibration stats (winnow/Canny "log every decision, measure
 // regret" pattern). Every resolution — model or user, shadow or live — is logged. When a task was
 // shadow-judged AND later resolved by the user, we can compare model-vs-user = the regret signal.
-import { appendFileSync, mkdirSync, readFileSync } from "node:fs";
+import { appendFileSync, mkdirSync, readFileSync, statSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { homedir } from "node:os";
 
@@ -74,32 +74,49 @@ function file(): string {
   return process.env.JEV_LOG_FILE || join(homedir(), ".paseo", "plugin-data", "jev-decisions.jsonl");
 }
 
+// The parsed log, kept warm so stats don't re-parse the whole growing jsonl every call. Guarded by
+// file size: an external write (size mismatch) rebuilds; our own appendLog pushes in place.
+let logCache: { path: string; size: number; records: DecisionLog[] } | null = null;
+
+function loadAll(f: string): DecisionLog[] {
+  const out: DecisionLog[] = [];
+  for (const line of readFileSync(f, "utf8").split("\n")) {
+    if (!line.trim()) continue;
+    try {
+      out.push(JSON.parse(line) as DecisionLog);
+    } catch {
+      // skip a corrupt line
+    }
+  }
+  return out;
+}
+
 export function appendLog(rec: DecisionLog): void {
   try {
     const f = file();
     mkdirSync(dirname(f), { recursive: true });
     appendFileSync(f, `${JSON.stringify(rec)}\n`, "utf8");
+    if (logCache && logCache.path === f) {
+      logCache.records.push(rec);
+      logCache.size = statSync(f).size; // stay in sync so readLog serves the warm cache
+    }
   } catch {
     // logging is best-effort; never break a resolution over it
   }
 }
 
-// ponytail: full-file read + JSON.parse per stats call. Rotate/tail the jsonl or cache the fold
-// if the log ever grows large; fine for interactive volumes.
+// ponytail: the jsonl still grows unbounded on disk (one line per decision); rotate/tail it if that
+// ever matters. This only caches the fold so stats stop re-parsing the whole file each call.
 export function readLog(agentId?: string): DecisionLog[] {
+  const f = file();
   try {
-    const out: DecisionLog[] = [];
-    for (const line of readFileSync(file(), "utf8").split("\n")) {
-      if (!line.trim()) continue;
-      try {
-        const r = JSON.parse(line) as DecisionLog;
-        if (!agentId || r.agentId === agentId) out.push(r);
-      } catch {
-        // skip a corrupt line
-      }
+    const size = statSync(f).size;
+    if (!logCache || logCache.path !== f || logCache.size !== size) {
+      logCache = { path: f, size, records: loadAll(f) };
     }
-    return out;
+    return agentId ? logCache.records.filter((r) => r.agentId === agentId) : logCache.records.slice();
   } catch {
+    logCache = null; // missing/unreadable → don't serve a stale fold
     return [];
   }
 }

@@ -104,19 +104,13 @@ export function useJevTasks(workspaceId: string, agentId: string, cwd: string): 
 
   const refresh = useCallback(
     async (withStats = true) => {
-      try {
-        const r = await listTasks({ workspaceId, agentId });
-        setTasks(r.tasks);
-      } catch {
-        // leave the last snapshot in place on a transient failure
-      }
-      if (withStats) {
-        try {
-          setStats(await statsRpc({ agentId }));
-        } catch {
-          // stats are best-effort
-        }
-      }
+      // one round-trip: fetch tasks and (optionally) stats in parallel, keep the last snapshot on failure
+      const [t, s] = await Promise.allSettled([
+        listTasks({ workspaceId, agentId }),
+        withStats ? statsRpc({ agentId }) : Promise.resolve(null),
+      ]);
+      if (t.status === "fulfilled") setTasks(t.value.tasks);
+      if (withStats && s.status === "fulfilled" && s.value) setStats(s.value);
     },
     [listTasks, statsRpc, workspaceId, agentId],
   );

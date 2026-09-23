@@ -41,4 +41,12 @@ describe("log append/read (temp file)", () => {
     appendLog(rec({ taskId: "l3" }));
     expect(readLog().some((r) => r.taskId === "l3")).toBe(true);
   });
+  it("serves a new append from the warm cache (no missed records)", () => {
+    readLog(); // warm the cache
+    const before = readLog().length;
+    appendLog(rec({ taskId: "warm" }));
+    const after = readLog();
+    expect(after.length).toBe(before + 1);
+    expect(after.some((r) => r.taskId === "warm")).toBe(true);
+  });
 });
