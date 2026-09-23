@@ -112,7 +112,7 @@ export function JevSurface({ theme, navigation }: PluginSurfaceProps) {
       </View>
 
       {selected ? (
-        <View style={{ flex: 1, width: "100%", maxWidth: 820, alignSelf: "center" }}>
+        <View style={{ flex: 1, width: "100%" }}>
           <JevQueueScreen
             key={selected.id}
             theme={theme}
