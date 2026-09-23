@@ -9,6 +9,7 @@ import {
   JevListTasksRpc,
   JevModelsRpc,
   JevRemoveTaskRpc,
+  JevReopenTaskRpc,
   JevResolveTaskRpc,
   JevStatsRpc,
 } from "../shared/rpc";
@@ -79,6 +80,7 @@ export interface UseJevTasks {
   add: (input: AddTaskInput) => Promise<Result>;
   judge: (id: string, model?: string) => Promise<Result>;
   judgeAll: () => Promise<{ resolved: number; note?: string }>;
+  rejudge: (id: string, model?: string) => Promise<Result>;
   resolve: (id: string, choiceKey: string) => Promise<Result>;
   remove: (id: string) => Promise<void>;
 }
@@ -88,6 +90,7 @@ export function useJevTasks(workspaceId: string, agentId: string, cwd: string): 
   const addRpc = useRpc(JevAddTaskRpc);
   const judgeRpc = useRpc(JevJudgeTaskRpc);
   const judgeAllRpc = useRpc(JevJudgeAllRpc);
+  const reopenRpc = useRpc(JevReopenTaskRpc);
   const resolveRpc = useRpc(JevResolveTaskRpc);
   const removeRpc = useRpc(JevRemoveTaskRpc);
   const statsRpc = useRpc(JevStatsRpc);
@@ -145,6 +148,21 @@ export function useJevTasks(workspaceId: string, agentId: string, cwd: string): 
     [judgeRpc, refresh, config],
   );
 
+  const rejudge = useCallback(
+    async (id: string, model?: string): Promise<Result> => {
+      setBusyId(id);
+      try {
+        await reopenRpc({ id }); // back to pending so the guarded judge can overwrite
+        const res = await judgeRpc({ id, model, config });
+        await refresh();
+        return res.ok ? { ok: true } : { ok: false, note: res.note };
+      } finally {
+        setBusyId(null);
+      }
+    },
+    [reopenRpc, judgeRpc, refresh, config],
+  );
+
   const judgeAll = useCallback(async (): Promise<{ resolved: number; note?: string }> => {
     setBusyAll(true);
     try {
@@ -186,5 +204,5 @@ export function useJevTasks(workspaceId: string, agentId: string, cwd: string): 
   const pending = useMemo(() => tasks.filter((t) => t.status === "pending"), [tasks]);
   const resolved = useMemo(() => tasks.filter((t) => t.status === "resolved"), [tasks]);
 
-  return { tasks, pending, resolved, stats, busyId, busyAll, refresh, add, judge, judgeAll, resolve, remove };
+  return { tasks, pending, resolved, stats, busyId, busyAll, refresh, add, judge, judgeAll, rejudge, resolve, remove };
 }

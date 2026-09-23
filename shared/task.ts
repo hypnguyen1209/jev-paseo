@@ -15,6 +15,8 @@ export const JevTaskSchema = z.object({
   /** preferred provider/model for this task; overridable when judging. */
   model: z.string().optional(),
   strict: z.boolean().optional(),
+  /** how the task was queued; "marker" means an agent pushed it via a [jev] line. */
+  source: z.enum(["marker"]).optional(),
   createdAt: z.string(),
   status: z.enum(["pending", "resolved"]),
   decidedBy: z.enum(["user", "model"]).optional(),

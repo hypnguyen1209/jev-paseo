@@ -9,6 +9,7 @@ import {
   judgeTaskHandler,
   listTasksHandler,
   removeTaskHandler,
+  reopenTaskHandler,
   resolveTaskHandler,
   statsHandler,
 } from "../server/tasks";
@@ -65,6 +66,69 @@ function fakeContext(probs: Record<string, number> = { no: 0.05, yes: 0.95 }): {
   } as unknown as PluginHandlerContext;
   return { context, creates: () => n };
 }
+
+/** Context that records agent.send() calls, for the feedback loop. */
+function fbContext(): { context: PluginHandlerContext; sent: string[] } {
+  const sent: string[] = [];
+  const context = {
+    paseo: {
+      agents: {
+        ref: () => ({
+          timeline: { append: async () => {}, refetch: async () => ({ entries: [] }) },
+          send: async (t: string) => {
+            sent.push(t);
+          },
+        }),
+        create: async () => ({
+          waitForFinish: async () => ({
+            status: "idle",
+            lastMessage: JSON.stringify({ answers: { main: { probabilities: { no: 0.02, yes: 0.98 } } } }),
+            final: null,
+            error: null,
+          }),
+          archive: async () => {},
+        }),
+      },
+    },
+  } as unknown as PluginHandlerContext;
+  return { context, sent };
+}
+
+describe("reopenTaskHandler", () => {
+  it("sends a resolved task back to pending and clears the result", async () => {
+    addTask(mk("RO1", "ro", { status: "resolved", decidedBy: "user" }));
+    expect((await reopenTaskHandler()({ id: "RO1" })).ok).toBe(true);
+    expect(getTask("RO1")?.status).toBe("pending");
+    expect(getTask("RO1")?.decidedBy).toBeUndefined();
+    expect((await reopenTaskHandler()({ id: "ghost" })).ok).toBe(false);
+  });
+});
+
+describe("agent feedback loop (JEV_FEEDBACK)", () => {
+  it("feeds a marker task's verdict back to the agent when enabled", async () => {
+    const { context, sent } = fbContext();
+    process.env.JEV_FEEDBACK = "1";
+    addTask(mk("FB1", "fb", { source: "marker" }));
+    await judgeTaskHandler()({ id: "FB1", config: cfg() }, context);
+    delete process.env.JEV_FEEDBACK;
+    expect(sent).toHaveLength(1);
+    expect(sent[0]).toContain("[jev] Decision on");
+    expect(sent[0]).toContain("yes");
+  });
+  it("stays silent for a non-marker task, and when the flag is off", async () => {
+    const off = fbContext();
+    addTask(mk("FB2", "fb2", { source: "marker" }));
+    await judgeTaskHandler()({ id: "FB2", config: cfg() }, off.context); // flag off
+    expect(off.sent).toHaveLength(0);
+
+    const nonMarker = fbContext();
+    process.env.JEV_FEEDBACK = "1";
+    addTask(mk("FB3", "fb3")); // no source
+    await judgeTaskHandler()({ id: "FB3", config: cfg() }, nonMarker.context);
+    delete process.env.JEV_FEEDBACK;
+    expect(nonMarker.sent).toHaveLength(0);
+  });
+});
 
 describe("addTaskHandler", () => {
   it("adds a valid task as pending", async () => {

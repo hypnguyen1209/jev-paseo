@@ -55,6 +55,7 @@ export function registerJevHook(server: PluginServerContext): void {
           instructions: m.instructions,
           options: m.options,
           strict: m.strict,
+          source: "marker",
           createdAt: new Date().toISOString(),
           status: "pending",
         };

@@ -67,6 +67,13 @@ export const JevRemoveTaskRpc = defineRpc({
   output: z.object({ ok: z.boolean() }),
 });
 
+/** Send a resolved task back to pending so it can be judged again (e.g. with a different model). */
+export const JevReopenTaskRpc = defineRpc({
+  name: "jev.reopen-task",
+  input: z.object({ id: z.string() }),
+  output: z.object({ ok: z.boolean() }),
+});
+
 /** Fan-out: resolve every pending task for the agent in ONE model call. */
 export const JevJudgeAllRpc = defineRpc({
   name: "jev.judge-all",

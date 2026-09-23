@@ -14,6 +14,10 @@ import { DecisionCardView } from "./card";
 import { JevForm } from "./form";
 import { shortModel, useJevModels, useJevTasks, type JevModel } from "./use-jev";
 
+// Remember each agent's "decide with" pick for the session, so reopening the queue keeps it instead
+// of snapping back to the default model.
+const rememberedModel = new Map<string, string>();
+
 function TaskRow({
   theme,
   task,
@@ -84,7 +88,19 @@ function TaskRow({
   );
 }
 
-function ResolvedRow({ theme, task }: { theme: PluginTheme; task: JevTask }) {
+function ResolvedRow({
+  theme,
+  task,
+  busy,
+  activeModel,
+  onRejudge,
+}: {
+  theme: PluginTheme;
+  task: JevTask;
+  busy: boolean;
+  activeModel: string;
+  onRejudge: (id: string) => void;
+}) {
   const c = theme.colors;
   const r = task.result;
   const by = task.decidedBy === "user" ? "by you" : `by ${r?.model || "model"}`;
@@ -107,10 +123,22 @@ function ResolvedRow({ theme, task }: { theme: PluginTheme; task: JevTask }) {
           {r?.verdict} · {by}
         </Text>
         {canExpand ? (
-          <Icon name={open ? "ChevronDown" : "ChevronRight"} size={iconSize.sm} color={c.foregroundMuted} />
+          <Icon name={busy ? "Loader" : open ? "ChevronDown" : "ChevronRight"} size={iconSize.sm} color={c.foregroundMuted} />
         ) : null}
       </Pressable>
-      {open && r ? <DecisionCardView theme={theme} card={r} /> : null}
+      {open && r ? (
+        <View style={{ gap: space[2] }}>
+          <DecisionCardView theme={theme} card={r} />
+          <Button
+            theme={theme}
+            variant="secondary"
+            icon="RotateCw"
+            busy={busy}
+            onPress={() => onRejudge(task.id)}
+            label={busy ? "re-judging…" : `re-judge with ${shortModel(activeModel || "default model")}`}
+          />
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -131,18 +159,27 @@ export function JevQueueScreen({
   const c = theme.colors;
   const settings = useSettings(jevSettings);
   const { models, note: modelsNote } = useJevModels(cwd);
-  const { pending, resolved, stats, busyId, busyAll, add, judge, judgeAll, resolve, remove } = useJevTasks(
+  const { pending, resolved, stats, busyId, busyAll, add, judge, judgeAll, rejudge, resolve, remove } = useJevTasks(
     workspaceId,
     agentId,
     cwd,
   );
-  const [activeModel, setActiveModel] = useState("");
+  const [activeModel, setActiveModelState] = useState(() => rememberedModel.get(agentId) ?? "");
   const [showAdd, setShowAdd] = useState(false);
   const [note, setNote] = useState<string | null>(null);
 
+  const setActiveModel = useCallback(
+    (m: string) => {
+      rememberedModel.set(agentId, m);
+      setActiveModelState(m);
+    },
+    [agentId],
+  );
+
   useEffect(() => {
-    if (settings.status === "ready" && !activeModel) setActiveModel(settings.values.defaultModel);
-  }, [settings.status]);
+    // seed the default only when this agent has no remembered pick yet
+    if (settings.status === "ready" && !rememberedModel.has(agentId)) setActiveModelState(settings.values.defaultModel);
+  }, [settings.status, agentId]);
 
   const onJudge = useCallback(
     async (id: string) => {
@@ -163,6 +200,13 @@ export function JevQueueScreen({
     const r = await judgeAll();
     setNote(r.resolved ? null : r.note ?? "nothing judged");
   }, [judgeAll]);
+  const onRejudge = useCallback(
+    async (id: string) => {
+      const r = await rejudge(id, activeModel || undefined);
+      setNote(r.ok ? null : r.note ?? "re-judge failed");
+    },
+    [rejudge, activeModel],
+  );
 
   const s = useMemo(
     () => ({
@@ -234,7 +278,14 @@ export function JevQueueScreen({
 
       {resolved.length ? <Text style={s.label}>resolved</Text> : null}
       {resolved.slice(0, compact ? 3 : 8).map((t) => (
-        <ResolvedRow key={t.id} theme={theme} task={t} />
+        <ResolvedRow
+          key={t.id}
+          theme={theme}
+          task={t}
+          busy={busyId === t.id}
+          activeModel={activeModel}
+          onRejudge={onRejudge}
+        />
       ))}
 
       {stats && stats.total > 0 ? (

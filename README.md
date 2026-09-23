@@ -118,7 +118,7 @@ Install it as a directory plugin. You need at least one provider configured in P
 paseo plugin install ./jev-paseo
 ```
 
-In a session, open the **Jev** pill next to the composer. Add a question with `＋ new`, or start from a preset (`verify`, `route`, `severity`, `guardrail`, and the rest of the common jev recipes). Resolve it by tapping an option, or pick a model under *decide with* and hit **ask**. "ask all" judges every pending task in one call. Each resolved decision becomes a card in the timeline, and the panel keeps a running log.
+In a session, open the **Jev** pill next to the composer. Add a question with `＋ new`, or start from a preset (`verify`, `route`, `severity`, `guardrail`, and the rest of the common jev recipes). Resolve it by tapping an option, or pick a model under *decide with* and hit **ask**. "ask all" judges every pending task in one call. Each resolved decision becomes a card in the timeline, and the panel keeps a running log. A resolved row expands to that full card, and you can re-judge it with a different model from there.
 
 Want more room? Open **Jev** from the sidebar. It opens as its own tab like a session, lists your live sessions across the top, and shows the full-size queue for whichever one you pick.
 
@@ -132,7 +132,9 @@ An agent can queue its own decisions by writing a marker line in its output:
 [jev] score: Rate this diff's risk | trivial | low | medium | high | severe
 ```
 
-Paseo won't let a plugin expose a tool to the agent or intercept a tool call before it runs. The marker is the seam that's left. An `agent.turn_ended` observer picks it up and turns it into a pending task, de-duped so asking twice doesn't queue twice. Teaching the agent to write markers is opt-in: flip `JEV_HOOK_INSTRUCT=1`, or say so in your project's `AGENTS.md` or `CLAUDE.md`. Feeding the verdict back into the agent's context is a `agents.send` follow-up I haven't built yet.
+Paseo won't let a plugin expose a tool to the agent or intercept a tool call before it runs. The marker is the seam that's left. An `agent.turn_ended` observer picks it up and turns it into a pending task, de-duped so asking twice doesn't queue twice. Teaching the agent to write markers is opt-in: flip `JEV_HOOK_INSTRUCT=1`, or say so in your project's `AGENTS.md` or `CLAUDE.md`.
+
+Set `JEV_FEEDBACK=1` to close the loop: when a marker task resolves (a model judged it or you picked), jev sends the decision back into that session with `agents.send`, so the coding agent reads the verdict and keeps going. It fires only for marker tasks, and a send failure never touches the resolution.
 
 ### Knobs
 
@@ -147,6 +149,7 @@ Settings live under **Settings → Jev**. The env vars only matter for the agent
 | Shadow mode | Judge and log, but leave the task pending. The model's guess sits next to your own pick so the panel can show how often you two agree. |
 | `JEV_HOOK_INSTRUCT=1` | Inject the marker convention into agent prompts. |
 | `JEV_HOOK_AUTOJUDGE=1` + `JEV_HOOK_MODEL` / `JEV_HOOK_SAMPLES` | Auto-judge marker tasks instead of leaving them for you. |
+| `JEV_FEEDBACK=1` | Send a resolved marker task's verdict back into the agent's session. |
 
 Tasks persist to `~/.paseo/plugin-data/jev-tasks.json`, and every decision (yours and the model's) is appended to `jev-decisions.jsonl`, which is what the agreement/regret stat reads.
 

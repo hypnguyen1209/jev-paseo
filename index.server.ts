@@ -8,6 +8,7 @@ import {
   JevListTasksRpc,
   JevModelsRpc,
   JevRemoveTaskRpc,
+  JevReopenTaskRpc,
   JevResolveTaskRpc,
   JevStatsRpc,
 } from "./shared/rpc";
@@ -20,6 +21,7 @@ import {
   judgeTaskHandler,
   listTasksHandler,
   removeTaskHandler,
+  reopenTaskHandler,
   resolveTaskHandler,
   statsHandler,
 } from "./server/tasks";
@@ -35,6 +37,7 @@ export default function contribute(server: PluginServerContext) {
   server.handle(JevJudgeAllRpc, judgeAllHandler());
   server.handle(JevResolveTaskRpc, resolveTaskHandler());
   server.handle(JevRemoveTaskRpc, removeTaskHandler());
+  server.handle(JevReopenTaskRpc, reopenTaskHandler());
   server.handle(JevStatsRpc, statsHandler());
   registerJevHook(server); // agents can push jev questions via `[jev] …` markers
   return () => {};

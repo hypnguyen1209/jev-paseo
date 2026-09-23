@@ -50,6 +50,7 @@ describe("agent.turn_ended marker hook", () => {
     const tasks = readStore().filter((t) => t.agentId === "hookA");
     expect(tasks.map((t) => t.type).sort()).toEqual(["choice", "noul"]);
     expect(tasks.every((t) => t.status === "pending")).toBe(true);
+    expect(tasks.every((t) => t.source === "marker")).toBe(true); // tagged for the feedback loop
     // same markers replay next turn → no new tasks
     await handlers["agent.turn_ended"](event, context);
     expect(readStore().filter((t) => t.agentId === "hookA").length).toBe(2);
