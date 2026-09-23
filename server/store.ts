@@ -9,8 +9,31 @@ import { JevTaskSchema, type JevTask } from "../shared/task";
 
 const StoreSchema = z.object({ v: z.literal(1), tasks: z.array(JevTaskSchema) });
 
+// ponytail: cap resolved history kept in the live store (pending is always kept). Full history for
+// stats lives in the append-only decision log, so the store only needs the recent resolved tail.
+const MAX_RESOLVED = 200;
+
+/** A collision-resistant task/entry id. Shared by the add handlers, the marker hook, and cards. */
+export function newId(): string {
+  return `jev-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+}
+
 function file(): string {
   return process.env.JEV_TASKS_FILE || join(homedir(), ".paseo", "plugin-data", "jev-tasks.json");
+}
+
+/** Keep every pending task and only the newest MAX_RESOLVED resolved ones, bounding file growth. */
+function prune(tasks: JevTask[]): JevTask[] {
+  const resolved = tasks.filter((t) => t.status === "resolved");
+  if (resolved.length <= MAX_RESOLVED) return tasks;
+  const keep = new Set(
+    resolved
+      .slice()
+      .sort((a, b) => (a.createdAt < b.createdAt ? 1 : a.createdAt > b.createdAt ? -1 : 0))
+      .slice(0, MAX_RESOLVED)
+      .map((t) => t.id),
+  );
+  return tasks.filter((t) => t.status !== "resolved" || keep.has(t.id));
 }
 
 export function readStore(): JevTask[] {
@@ -26,7 +49,7 @@ export function writeStore(tasks: JevTask[]): void {
   const f = file();
   mkdirSync(dirname(f), { recursive: true });
   const tmp = `${f}.tmp-${process.pid}-${randomUUID()}`;
-  writeFileSync(tmp, JSON.stringify({ v: 1, tasks }, null, 2), "utf8");
+  writeFileSync(tmp, JSON.stringify({ v: 1, tasks: prune(tasks) }, null, 2), "utf8");
   renameSync(tmp, f);
 }
 
@@ -66,14 +89,20 @@ export function removeTask(id: string): void {
 /**
  * Resolve many tasks in ONE read+write (keeps fan-out judging to a single persist). Only pending
  * tasks are patched — the same guard as updateTask, so a user resolution during a slow batch wins.
+ * Returns the ids actually patched, so callers can log/card only the decisions that really landed.
  */
-export function resolveTasks(updates: Array<{ id: string; patch: Partial<JevTask> }>): void {
-  if (!updates.length) return;
+export function resolveTasks(updates: Array<{ id: string; patch: Partial<JevTask> }>): string[] {
+  if (!updates.length) return [];
   const patchById = new Map(updates.map((u) => [u.id, u.patch]));
   const tasks = readStore();
+  const applied: string[] = [];
   for (const t of tasks) {
     const patch = patchById.get(t.id);
-    if (patch && t.status === "pending") Object.assign(t, patch);
+    if (patch && t.status === "pending") {
+      Object.assign(t, patch);
+      applied.push(t.id);
+    }
   }
   writeStore(tasks);
+  return applied;
 }

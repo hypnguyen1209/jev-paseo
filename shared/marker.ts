@@ -41,11 +41,15 @@ export function parseMarker(line: string): JevMarker | null {
   rest = rest.replace(/^:\s*/, "").trim(); // optional colon separator
 
   if (!rest) return null;
+  // noul takes no options, so keep the whole question intact — a `|` inside it (e.g. `a || b`) is
+  // part of the text, not an option separator.
+  if (type === "noul") return { type, instructions: rest, options: [], strict };
+
   const parts = rest.split("|").map((s) => s.trim());
   const instructions = parts[0];
   if (!instructions) return null;
   const options = parts.slice(1).filter((s) => s.length > 0);
-  if ((type === "choice" || type === "score") && options.length < 2) return null;
+  if (options.length < 2) return null;
 
   return { type, instructions, options, strict };
 }

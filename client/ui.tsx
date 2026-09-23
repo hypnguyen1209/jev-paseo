@@ -1,13 +1,17 @@
 // v0.5.0: shared UI atoms, styled to match Paseo's native chrome — same tokens, the same menu-row
 // look (hover = surface2, selection = a trailing check, not a fill), the same button geometry, and
 // real lucide icons via the host's Icon component.
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Pressable, ScrollView, Text, View, type PressableStateCallbackType } from "react-native";
 import { Icon } from "@getpaseo/plugin/client/react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
 import { controlHeight, font, iconSize, radius, space, weight } from "./theme";
 
 type Hover = PressableStateCallbackType & { hovered?: boolean };
+
+// Only one dropdown open at a time: opening one closes whichever was open (they render inline, so
+// there's no backdrop to dismiss them otherwise).
+let closeActiveDropdown: (() => void) | null = null;
 
 export function Chip({
   theme,
@@ -126,11 +130,30 @@ export function Dropdown({
   const c = theme.colors;
   const [open, setOpen] = useState(false);
   const selected = items.find((i) => i.key === selectedKey);
+  const close = useCallback(() => {
+    setOpen(false);
+    if (closeActiveDropdown === close) closeActiveDropdown = null;
+  }, []);
+  const toggle = useCallback(() => {
+    setOpen((v) => {
+      if (v) {
+        if (closeActiveDropdown === close) closeActiveDropdown = null;
+        return false;
+      }
+      if (closeActiveDropdown && closeActiveDropdown !== close) closeActiveDropdown();
+      closeActiveDropdown = close;
+      return true;
+    });
+  }, [close]);
+  useEffect(() => () => {
+    if (closeActiveDropdown === close) closeActiveDropdown = null;
+  }, [close]);
   return (
     <View style={{ gap: space[1] }}>
       <Pressable
         accessibilityRole="button"
-        onPress={() => setOpen((v) => !v)}
+        accessibilityState={{ expanded: open }}
+        onPress={toggle}
         style={({ pressed, hovered }: Hover) => ({
           flexDirection: "row",
           alignItems: "center",
@@ -161,9 +184,10 @@ export function Dropdown({
                 <Pressable
                   key={it.key}
                   accessibilityRole="menuitem"
+                  accessibilityState={{ selected: active }}
                   onPress={() => {
                     onSelect(it.key);
-                    setOpen(false);
+                    close();
                   }}
                   style={({ pressed, hovered }: Hover) => ({
                     flexDirection: "row",

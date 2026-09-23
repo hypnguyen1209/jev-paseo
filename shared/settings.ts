@@ -3,19 +3,26 @@
 import { defineSettings } from "@getpaseo/plugin";
 import { z } from "zod";
 
-export const jevSettingsSchema = z.object({
-  defaultModel: z.string().trim().default(""),
-  strict: z.boolean().default(true),
-  /** high-band / auto-accept confidence (STRICT gate). */
-  threshold: z.number().min(0).max(1).default(0.9),
-  /** medium-band floor: below this is "low" (escalate). */
-  reviewFloor: z.number().min(0).max(1).default(0.6),
-  maxRounds: z.number().int().min(1).max(5).default(2),
-  /** self-consistency: 1 = one self-reported distribution (fast); ≥2 = K votes tallied (calibrated). */
-  samples: z.number().int().min(1).max(9).default(1),
-  /** shadow mode: judge + log + show a card, but DON'T resolve — for calibrating against your own picks. */
-  shadow: z.boolean().default(false),
-});
+export const jevSettingsSchema = z
+  .object({
+    defaultModel: z.string().trim().default(""),
+    strict: z.boolean().default(true),
+    /** high-band / auto-accept confidence (STRICT gate). */
+    threshold: z.number().min(0).max(1).default(0.9),
+    /** medium-band floor: below this is "low" (escalate). */
+    reviewFloor: z.number().min(0).max(1).default(0.6),
+    maxRounds: z.number().int().min(1).max(5).default(2),
+    /** self-consistency: 1 = one self-reported distribution (fast); ≥2 = K votes tallied (calibrated). */
+    samples: z.number().int().min(1).max(9).default(1),
+    /** shadow mode: judge + log + show a card, but DON'T resolve — for calibrating against your own picks. */
+    shadow: z.boolean().default(false),
+  })
+  // reviewFloor is the medium/low cutoff and must sit at or below the high-band threshold, else the
+  // medium band is unreachable and bandOf would auto-accept below the user's review floor.
+  .refine((v) => v.reviewFloor <= v.threshold, {
+    message: "reviewFloor must be ≤ threshold",
+    path: ["reviewFloor"],
+  });
 
 export const jevSettings = defineSettings({
   id: "jev",

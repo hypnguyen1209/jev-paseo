@@ -21,7 +21,7 @@ import { makeLlmBackend } from "./backend";
 import { buildQuestion, toCard, userCard } from "./card-map";
 import { makeAsk, recentState } from "./model-ask";
 import { aggregate, appendLog, readLog } from "./log";
-import { addTask, getTask, readStore, removeTask, resolveTasks, updateTask } from "./store";
+import { addTask, getTask, newId, readStore, removeTask, resolveTasks, updateTask } from "./store";
 
 // ponytail: fixed fan-out chunk. Bounds one prompt so a huge batch can't overflow the model or
 // fail all-or-nothing; make it token-aware if models vary a lot.
@@ -31,10 +31,6 @@ function modelFormatError(model: string): string | null {
   if (!model) return "No model. Pick one or set a default in Jev settings.";
   if (!model.includes("/")) return 'Model must be in "provider/model" format (e.g. anthropic/claude-sonnet-5).';
   return null;
-}
-
-function newId(): string {
-  return `jev-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 }
 
 function logModel(task: JevTask, result: JudgeResult, model: string, shadow: boolean): void {
@@ -58,7 +54,7 @@ async function appendCard(context: PluginHandlerContext, agentId: string, card: 
   try {
     await context.paseo.agents.ref(agentId).timeline.append({
       type: "plugin",
-      id: `jev-${Date.now()}`,
+      id: newId(),
       kind: JEV_DECISION_KIND,
       version: JEV_DECISION_VERSION,
       data: card,
@@ -130,12 +126,19 @@ export async function judgeTask(
   });
   const shadow = defaults.shadow;
   const card: DecisionCard = { ...toCard(result), shadow: shadow || undefined };
-  logModel(task, result, model, shadow);
-  await appendCard(context, task.agentId, card);
-  if (shadow) return { ok: true, task }; // judged + logged, but left pending on purpose
-  // guard: don't overwrite a user resolution that landed during the await
+  if (shadow) {
+    // shadow: judge + log + card, but leave the task pending on purpose
+    logModel(task, result, model, true);
+    await appendCard(context, task.agentId, card);
+    return { ok: true, task };
+  }
+  // guard: don't overwrite a user resolution that landed during the await. Only log + card the
+  // decision if it actually resolved the task — a lost race must not leave a phantom model card/log.
   const updated = updateTask(task.id, { status: "resolved", decidedBy: "model", model, result: card }, (t) => t.status === "pending");
-  return { ok: true, task: updated ?? getTask(task.id) ?? task };
+  if (!updated) return { ok: true, task: getTask(task.id) ?? task };
+  logModel(task, result, model, false);
+  await appendCard(context, task.agentId, card);
+  return { ok: true, task: updated };
 }
 
 export function judgeTaskHandler() {
@@ -163,59 +166,87 @@ export function judgeAllHandler() {
       const pending = readStore().filter((t) => t.agentId === input.agentId && t.status === "pending");
       if (!pending.length) return { resolved: 0, note: "No pending judge tasks." };
 
-      const model = defaults.defaultModel;
-      const modelErr = modelFormatError(model);
-      if (modelErr) return { resolved: 0, note: modelErr };
       const valid = pending.filter((t) => buildQuestion(t.type, t.instructions, t.options));
       if (!valid.length) return { resolved: 0, note: "No valid pending tasks (choice/score need ≥2 options)." };
 
-      const backend = makeLlmBackend(model, makeAsk(context, valid[0].cwd, model, input.agentId), defaults.samples);
-      const batchTasks: BatchTask[] = valid.map((t) => ({
-        id: t.id,
-        question: buildQuestion(t.type, t.instructions, t.options)!,
-      }));
       const state = await recentState(context, input.agentId);
+      const effModel = (t: JevTask) => t.model?.trim() || defaults.defaultModel;
 
-      // Chunk the fan-out so a large batch can't overflow one prompt or fail all-or-nothing.
+      // Group by effective model so a task's preferred model is honored; tasks sharing a model still
+      // resolve in one call. Chunk each group so a large batch can't overflow one prompt.
+      const groups = new Map<string, JevTask[]>();
+      for (const t of valid) {
+        const g = groups.get(effModel(t));
+        if (g) g.push(t);
+        else groups.set(effModel(t), [t]);
+      }
+
       const results: Record<string, JudgeResult> = {};
-      for (let i = 0; i < batchTasks.length; i += BATCH_CHUNK) {
-        const slice = batchTasks.slice(i, i + BATCH_CHUNK);
-        try {
-          Object.assign(
-            results,
-            await runBatchJudge({
-              tasks: slice,
-              state,
-              model,
-              strict: defaults.strict,
-              threshold: defaults.threshold,
-              reviewFloor: defaults.reviewFloor,
-              backend,
-            }),
-          );
-        } catch {
-          // a failed chunk must not sink the others — skip it, keep going
+      let lastErr: unknown;
+      for (const [model, tasks] of groups) {
+        const modelErr = modelFormatError(model);
+        if (modelErr) {
+          lastErr = new Error(modelErr);
+          continue;
+        }
+        const backend = makeLlmBackend(model, makeAsk(context, tasks[0].cwd, model, input.agentId), defaults.samples);
+        const batchTasks: BatchTask[] = tasks.map((t) => ({
+          id: t.id,
+          question: buildQuestion(t.type, t.instructions, t.options)!,
+        }));
+        for (let i = 0; i < batchTasks.length; i += BATCH_CHUNK) {
+          try {
+            Object.assign(
+              results,
+              await runBatchJudge({
+                tasks: batchTasks.slice(i, i + BATCH_CHUNK),
+                state,
+                model,
+                strict: defaults.strict,
+                threshold: defaults.threshold,
+                reviewFloor: defaults.reviewFloor,
+                backend,
+              }),
+            );
+          } catch (e) {
+            lastErr = e; // a failed chunk must not sink the others — remember it, keep going
+          }
         }
       }
 
       const shadow = defaults.shadow;
-      const cards: Array<{ agentId: string; card: DecisionCard }> = [];
-      const patches: Array<{ id: string; patch: Partial<JevTask> }> = [];
-      let judged = 0;
-      for (const t of valid) {
-        const result = results[t.id];
-        if (!result) continue;
-        const card: DecisionCard = { ...toCard(result), shadow: shadow || undefined };
-        logModel(t, result, model, shadow);
-        cards.push({ agentId: t.agentId, card });
-        if (!shadow) patches.push({ id: t.id, patch: { status: "resolved", decidedBy: "model", model, result: card } });
-        judged++;
+      const judgedList = valid
+        .map((t) => ({ task: t, result: results[t.id] }))
+        .filter((x): x is { task: JevTask; result: JudgeResult } => Boolean(x.result))
+        .map(({ task, result }) => ({
+          task,
+          result,
+          model: effModel(task),
+          card: { ...toCard(result), shadow: shadow || undefined } as DecisionCard,
+        }));
+
+      if (shadow) {
+        for (const j of judgedList) logModel(j.task, j.result, j.model, true);
+        await Promise.all(judgedList.map((j) => appendCard(context, j.task.agentId, j.card)));
+        return { resolved: 0, note: `shadow — judged ${judgedList.length}, left pending` };
       }
-      await Promise.all(cards.map((c) => appendCard(context, c.agentId, c.card)));
-      if (!shadow) resolveTasks(patches); // one read+write for the whole batch; guards on pending
+
+      // Resolve first (one read+write, guarded on pending); then log + card only the decisions that
+      // actually landed, so a user pick during the await doesn't leave a phantom model card/log.
+      const applied = new Set(
+        resolveTasks(
+          judgedList.map((j) => ({
+            id: j.task.id,
+            patch: { status: "resolved", decidedBy: "model", model: j.model, result: j.card },
+          })),
+        ),
+      );
+      const done = judgedList.filter((j) => applied.has(j.task.id));
+      for (const j of done) logModel(j.task, j.result, j.model, false);
+      await Promise.all(done.map((j) => appendCard(context, j.task.agentId, j.card)));
       return {
-        resolved: shadow ? 0 : judged,
-        note: shadow ? `shadow — judged ${judged}, left pending` : judged ? undefined : "No tasks judged (model error).",
+        resolved: done.length,
+        note: done.length ? undefined : `No tasks judged: ${lastErr instanceof Error ? lastErr.message : "model error"}`,
       };
     } catch (e) {
       return { resolved: 0, note: e instanceof Error ? e.message : String(e) };

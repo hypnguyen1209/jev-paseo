@@ -32,16 +32,16 @@ export interface JevModel {
   provider: string;
 }
 
-/** Show just the model half of `provider/model` on chips so they don't overflow the popover. */
-const shortModel = (id: string) => (id.includes("/") ? id.slice(id.indexOf("/") + 1) : id);
+/** Show just the model half of `provider/model` so labels don't overflow. */
+export const shortModel = (id: string) => (id.includes("/") ? id.slice(id.indexOf("/") + 1) : id);
 
-export function useJevModels(): { models: JevModel[]; note: string | null } {
+export function useJevModels(cwd?: string): { models: JevModel[]; note: string | null } {
   const listModels = useRpc(JevModelsRpc);
   const [models, setModels] = useState<JevModel[]>([]);
   const [note, setNote] = useState<string | null>(null);
   useEffect(() => {
     let live = true;
-    void listModels({})
+    void listModels(cwd ? { cwd } : {}) // cwd scopes provider discovery to the workspace
       .then((r) => {
         if (!live) return;
         setModels(r.models.map((m) => ({ id: m.id, label: shortModel(m.id), provider: m.provider })));
@@ -53,7 +53,7 @@ export function useJevModels(): { models: JevModel[]; note: string | null } {
     return () => {
       live = false;
     };
-  }, [listModels]);
+  }, [listModels, cwd]);
   return { models, note };
 }
 
@@ -158,17 +158,27 @@ export function useJevTasks(workspaceId: string, agentId: string, cwd: string): 
 
   const resolve = useCallback(
     async (id: string, choiceKey: string): Promise<Result> => {
-      const res = await resolveRpc({ id, choiceKey });
-      await refresh();
-      return res.ok ? { ok: true } : { ok: false, note: res.note };
+      setBusyId(id); // block a double-tap firing a second resolve on an already-resolved task
+      try {
+        const res = await resolveRpc({ id, choiceKey });
+        await refresh();
+        return res.ok ? { ok: true } : { ok: false, note: res.note };
+      } finally {
+        setBusyId(null);
+      }
     },
     [resolveRpc, refresh],
   );
 
   const remove = useCallback(
     async (id: string): Promise<void> => {
-      await removeRpc({ id });
-      await refresh(false); // remove doesn't touch the decision log
+      setBusyId(id);
+      try {
+        await removeRpc({ id });
+        await refresh(false); // remove doesn't touch the decision log
+      } finally {
+        setBusyId(null);
+      }
     },
     [removeRpc, refresh],
   );

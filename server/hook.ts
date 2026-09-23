@@ -4,7 +4,7 @@
 import type { PluginServerContext } from "@getpaseo/plugin/server";
 import { extractMarkers } from "../shared/marker";
 import { jevSettingsSchema, type JevSettingsValues } from "../shared/settings";
-import { addTask, readStore } from "./store";
+import { addTask, newId, readStore } from "./store";
 import { judgeTask } from "./tasks";
 import type { JevTask } from "../shared/task";
 
@@ -14,10 +14,6 @@ const INSTRUCTION = [
   "It becomes a decision task in the Jev panel, resolved by you or a model.",
   "Example: `[jev] choice: Which fix is safer? | rollback | hotfix`.",
 ].join(" ");
-
-function newId(): string {
-  return `jev-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
-}
 
 function envConfig(): { config: JevSettingsValues; autoJudge: boolean } {
   const config = jevSettingsSchema.parse({

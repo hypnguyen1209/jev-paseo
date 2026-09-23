@@ -11,12 +11,13 @@ import { taskOptions, type JevTask } from "../shared/task";
 import { Button, Chip, Dropdown } from "./ui";
 import { font, iconSize, radius, space, weight } from "./theme";
 import { JevForm } from "./form";
-import { useJevModels, useJevTasks } from "./use-jev";
+import { shortModel, useJevModels, useJevTasks, type JevModel } from "./use-jev";
 
 function TaskRow({
   theme,
   task,
   busy,
+  disabled,
   activeModel,
   onJudge,
   onResolve,
@@ -25,6 +26,8 @@ function TaskRow({
   theme: PluginTheme;
   task: JevTask;
   busy: boolean;
+  /** another row (or "ask all") is in flight — block this row's judge to avoid a duplicate call */
+  disabled: boolean;
   activeModel: string;
   onJudge: (id: string) => void;
   onResolve: (id: string, key: string) => void;
@@ -32,7 +35,7 @@ function TaskRow({
 }) {
   const c = theme.colors;
   const opts = taskOptions(task);
-  const modelLabel = task.model || activeModel || "default model";
+  const modelLabel = shortModel(task.model || activeModel || "default model");
   return (
     <View
       style={{
@@ -53,6 +56,7 @@ function TaskRow({
           accessibilityRole="button"
           accessibilityLabel="remove task"
           hitSlop={8}
+          disabled={busy}
           onPress={() => onRemove(task.id)}
         >
           <Icon name="X" size={iconSize.sm} color={c.foregroundMuted} />
@@ -62,7 +66,7 @@ function TaskRow({
       <Text style={{ color: c.foregroundMuted, fontSize: font.sm, textTransform: "uppercase" }}>you decide</Text>
       <View style={{ flexDirection: "row", flexWrap: "wrap", gap: space[1.5] }}>
         {opts.map((o) => (
-          <Chip key={o.key} theme={theme} active={false} label={o.label} onPress={() => onResolve(task.id, o.key)} />
+          <Chip key={o.key} theme={theme} active={false} disabled={busy} label={o.label} onPress={() => onResolve(task.id, o.key)} />
         ))}
       </View>
 
@@ -71,6 +75,7 @@ function TaskRow({
         block
         icon="Sparkles"
         busy={busy}
+        disabled={disabled}
         onPress={() => onJudge(task.id)}
         label={busy ? "judging…" : `ask ${modelLabel}${task.strict ? " · STRICT" : ""}`}
       />
@@ -110,7 +115,7 @@ export function JevQueueScreen({
 }) {
   const c = theme.colors;
   const settings = useSettings(jevSettings);
-  const { models } = useJevModels();
+  const { models, note: modelsNote } = useJevModels(cwd);
   const { pending, resolved, stats, busyId, busyAll, add, judge, judgeAll, resolve, remove } = useJevTasks(
     workspaceId,
     agentId,
@@ -134,7 +139,7 @@ export function JevQueueScreen({
   const onResolve = useCallback(
     async (id: string, key: string) => {
       const r = await resolve(id, key);
-      if (!r.ok) setNote(r.note ?? "could not resolve");
+      setNote(r.ok ? null : r.note ?? "could not resolve"); // clear any stale judge error on success
     },
     [resolve],
   );
@@ -166,7 +171,9 @@ export function JevQueueScreen({
         <Chip theme={theme} active={showAdd} label={showAdd ? "close" : "＋ new"} onPress={() => setShowAdd((v) => !v)} />
       </View>
 
-      {showAdd ? <JevForm theme={theme} add={add} compact={compact} onAdded={() => setShowAdd(false)} /> : null}
+      {showAdd ? (
+        <JevForm theme={theme} add={add} models={models} modelsNote={modelsNote} compact={compact} onAdded={() => setShowAdd(false)} />
+      ) : null}
 
       <Dropdown
         theme={theme}
@@ -176,6 +183,7 @@ export function JevQueueScreen({
         onSelect={setActiveModel}
         placeholder="default"
       />
+      {models.length === 0 && modelsNote ? <Text style={s.muted}>{modelsNote}</Text> : null}
 
       {pending.length > 1 ? (
         <Button
@@ -183,6 +191,7 @@ export function JevQueueScreen({
           block
           icon="Sparkles"
           busy={busyAll}
+          disabled={busyId !== null}
           onPress={onJudgeAll}
           label={busyAll ? "judging all…" : `ask all (${pending.length}) · one call`}
         />
@@ -197,6 +206,7 @@ export function JevQueueScreen({
             theme={theme}
             task={t}
             busy={busyId === t.id}
+            disabled={busyAll || (busyId !== null && busyId !== t.id)}
             activeModel={activeModel}
             onJudge={onJudge}
             onResolve={onResolve}

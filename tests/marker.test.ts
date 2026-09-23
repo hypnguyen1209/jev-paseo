@@ -17,6 +17,10 @@ describe("parseMarker", () => {
     const m = parseMarker("[jev] yn strict: Is the bug fixed?");
     expect(m).toEqual({ type: "noul", instructions: "Is the bug fixed?", options: [], strict: true });
   });
+  it("noul keeps a pipe in the question instead of splitting it into options", () => {
+    const m = parseMarker("[jev] yn: Is `a || b` a valid guard?");
+    expect(m).toEqual({ type: "noul", instructions: "Is `a || b` a valid guard?", options: [], strict: false });
+  });
   it("score with ordered levels", () => {
     expect(parseMarker("[jev] score: Rate risk | low | med | high")?.type).toBe("score");
   });

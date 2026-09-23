@@ -5,7 +5,10 @@ import { JevListTasksRpc } from "../shared/rpc";
 import { JevQueuePopover } from "./popover";
 
 export function startJevPills(client: PluginClientContext): () => void {
-  const pills = new Map<string, { reg: PluginButtonRegistration; timer: ReturnType<typeof setInterval> }>();
+  const pills = new Map<
+    string,
+    { reg: PluginButtonRegistration; timer: ReturnType<typeof setInterval>; workspaceId: string }
+  >();
   let stopped = false;
   let release: (() => void) | undefined;
   const lifetime = new AbortController();
@@ -20,8 +23,15 @@ export function startJevPills(client: PluginClientContext): () => void {
   };
 
   const register = (agent: { id: string; workspaceId?: string | null }) => {
-    drop(agent.id); // clear any prior pill first — incl. an agent that just lost its workspaceId
-    if (stopped || !agent.workspaceId) return;
+    if (stopped || !agent.workspaceId) {
+      drop(agent.id); // an agent that lost its workspace has no pill
+      return;
+    }
+    const existing = pills.get(agent.id);
+    // A plain agent_update (status/progress) fires constantly; rebuilding the pill each time flickers
+    // the composer and storms list-tasks RPCs. Only rebuild when the workspace actually changed.
+    if (existing && existing.workspaceId === agent.workspaceId) return;
+    drop(agent.id);
     const workspaceId = agent.workspaceId;
     const reg = client.addComposerPill({
       id: "jev",
@@ -45,7 +55,7 @@ export function startJevPills(client: PluginClientContext): () => void {
     refresh();
     // ponytail: 30s badge poll; the count is discrete-action driven and the popover refetches on open.
     const timer = setInterval(refresh, 30_000);
-    pills.set(agent.id, { reg, timer });
+    pills.set(agent.id, { reg, timer, workspaceId });
   };
 
   void client.paseo.agents

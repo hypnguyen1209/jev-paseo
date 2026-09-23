@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { addTask, getTask, readStore, removeTask, updateTask } from "../server/store";
+import { addTask, getTask, readStore, removeTask, resolveTasks, updateTask, writeStore } from "../server/store";
 import type { JevTask } from "../shared/task";
 
 const dir = mkdtempSync(join(tmpdir(), "jev-store-"));
@@ -51,5 +51,28 @@ describe("store CRUD (temp file)", () => {
   it("corrupt file reads as empty (never throws)", () => {
     writeFileSync(process.env.JEV_TASKS_FILE!, "{ not json", "utf8");
     expect(readStore()).toEqual([]);
+  });
+  it("resolveTasks patches only pending tasks and returns the applied ids", () => {
+    writeStore([
+      { ...t("r1"), status: "pending" },
+      { ...t("r2"), status: "resolved" }, // already resolved → guard skips
+    ]);
+    const applied = resolveTasks([
+      { id: "r1", patch: { status: "resolved", decidedBy: "model" } },
+      { id: "r2", patch: { status: "resolved", decidedBy: "model" } },
+    ]);
+    expect(applied).toEqual(["r1"]);
+    expect(getTask("r1")?.decidedBy).toBe("model");
+  });
+  it("prunes resolved tasks beyond the cap but keeps every pending one", () => {
+    const resolved = Array.from({ length: 260 }, (_, i) => ({
+      ...t(`old-${i}`),
+      status: "resolved" as const,
+      createdAt: `2026-01-01T00:${String(i).padStart(2, "0")}:00Z`,
+    }));
+    writeStore([...resolved, { ...t("keep-pending"), status: "pending" }]);
+    const after = readStore();
+    expect(after.filter((x) => x.status === "resolved").length).toBe(200);
+    expect(getTask("keep-pending")?.status).toBe("pending"); // pending never pruned
   });
 });

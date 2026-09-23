@@ -8,24 +8,27 @@ import { jevSettings } from "../shared/settings";
 import { PRESETS, type Preset } from "../shared/presets";
 import { Button, Chip, Dropdown } from "./ui";
 import { font, radius, space } from "./theme";
-import { useJevModels, type AddTaskInput } from "./use-jev";
+import type { AddTaskInput, JevModel } from "./use-jev";
 
 type DecisionType = "choice" | "score" | "noul";
 
 export function JevForm({
   theme,
   add,
+  models,
+  modelsNote,
   compact,
   onAdded,
 }: {
   theme: PluginTheme;
   add: (input: AddTaskInput) => Promise<{ ok: boolean; note?: string }>;
+  models: JevModel[];
+  modelsNote: string | null;
   compact?: boolean;
   onAdded?: () => void;
 }) {
   const c = theme.colors;
   const settings = useSettings(jevSettings);
-  const { models, note: modelsNote } = useJevModels();
   const [model, setModel] = useState("");
   const [type, setType] = useState<DecisionType>("choice");
   const [strict, setStrict] = useState(true);
