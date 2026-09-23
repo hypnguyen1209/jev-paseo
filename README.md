@@ -54,12 +54,12 @@ flowchart TB
     sess["your session agent<br/>claude · codex · pi"]
   end
 
-  queue <-->|"RPC (zod-validated)"| rpc
+  queue -->|"RPC, zod-validated"| rpc
   rpc --> prov
   be --> sub
   core --> tl
   card -.->|renders| tl
-  sess -->|"writes a [jev] line"| hook
+  sess -->|"writes a jev line"| hook
 ```
 
 The judge subagent runs with an empty tool policy and a system prompt that tells it to return JSON and nothing else. No reading files, no running commands. Pointing it at a full coding agent won't set off a chain of tool calls or permission prompts.
