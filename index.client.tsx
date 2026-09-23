@@ -18,24 +18,37 @@ export default function contribute(client: PluginClientContext) {
     Component: JevPanel,
   });
 
-  // Full-tab surface + sidebar entry. Guarded: older hosts lack these, so we fall back to the panel.
-  const hasSurface = typeof client.addSurface === "function" && typeof client.addSidebarItem === "function";
-  if (hasSurface) {
+  // Full-tab surface + sidebar entry. Older hosts lack these; there we fall back to the docked panel.
+  const canSurface = typeof client.addSurface === "function";
+  const keywords = ["jev", "decision", "judge", "task", "choice", "score", "verdict", "full", "screen"];
+  if (canSurface) {
     client.addSurface("jev", JevSurface);
-    client.addSidebarItem({ id: "jev", title: "Jev", icon: "Scale", surface: "jev" });
+    // The left-sidebar row can be hidden when the sidebar is collapsed, so the command is global —
+    // Ctrl/Cmd+K → "Jev" opens the full-screen tab from anywhere.
+    if (typeof client.addSidebarItem === "function")
+      client.addSidebarItem({ id: "jev", title: "Jev", icon: "Scale", surface: "jev" });
+    client.addCommandCenterItem({
+      id: "jev-open",
+      title: "Jev: open full screen",
+      icon: "Scale",
+      keywords,
+      context: "global",
+      onSelect(ctx) {
+        ctx.openSurface("jev");
+      },
+    });
+  } else {
+    client.addCommandCenterItem({
+      id: "jev-open",
+      title: "Jev: judge-task queue",
+      icon: "Scale",
+      keywords,
+      context: "agent",
+      onSelect(ctx) {
+        ctx.openPanel("jev");
+      },
+    });
   }
-
-  client.addCommandCenterItem({
-    id: "jev-open",
-    title: "Jev: judge-task queue",
-    icon: "Scale",
-    keywords: ["jev", "decision", "judge", "task", "choice", "score", "verdict"],
-    context: "agent",
-    onSelect(ctx) {
-      if (hasSurface && typeof ctx.openSurface === "function") ctx.openSurface("jev");
-      else ctx.openPanel("jev");
-    },
-  });
 
   client.addSettingsScreen({
     id: "jev",
