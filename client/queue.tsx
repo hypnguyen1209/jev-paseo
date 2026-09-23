@@ -10,6 +10,7 @@ import { jevSettings } from "../shared/settings";
 import { taskOptions, type JevTask } from "../shared/task";
 import { Button, Chip, Dropdown } from "./ui";
 import { font, iconSize, radius, space, weight } from "./theme";
+import { DecisionCardView } from "./card";
 import { JevForm } from "./form";
 import { shortModel, useJevModels, useJevTasks, type JevModel } from "./use-jev";
 
@@ -87,15 +88,29 @@ function ResolvedRow({ theme, task }: { theme: PluginTheme; task: JevTask }) {
   const c = theme.colors;
   const r = task.result;
   const by = task.decidedBy === "user" ? "by you" : `by ${r?.model || "model"}`;
+  const [open, setOpen] = useState(false);
+  const canExpand = Boolean(r);
   return (
-    <View style={{ flexDirection: "row", alignItems: "center", gap: space[2], paddingVertical: space[1] }}>
-      <Icon name="Check" size={iconSize.sm} color={c.statusSuccess} />
-      <Text style={{ color: c.foreground, fontSize: font.base, flex: 1 }} numberOfLines={1}>
-        {r?.answerLabel ?? "resolved"}
-      </Text>
-      <Text style={{ color: c.foregroundMuted, fontSize: font.sm }}>
-        {r?.verdict} · {by}
-      </Text>
+    <View style={{ gap: space[1] }}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityState={{ expanded: open }}
+        disabled={!canExpand}
+        onPress={() => setOpen((v) => !v)}
+        style={{ flexDirection: "row", alignItems: "center", gap: space[2], paddingVertical: space[1] }}
+      >
+        <Icon name="Check" size={iconSize.sm} color={c.statusSuccess} />
+        <Text style={{ color: c.foreground, fontSize: font.base, flex: 1 }} numberOfLines={1}>
+          {r?.answerLabel ?? "resolved"}
+        </Text>
+        <Text style={{ color: c.foregroundMuted, fontSize: font.sm }}>
+          {r?.verdict} · {by}
+        </Text>
+        {canExpand ? (
+          <Icon name={open ? "ChevronDown" : "ChevronRight"} size={iconSize.sm} color={c.foregroundMuted} />
+        ) : null}
+      </Pressable>
+      {open && r ? <DecisionCardView theme={theme} card={r} /> : null}
     </View>
   );
 }

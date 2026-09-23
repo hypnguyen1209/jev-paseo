@@ -4,6 +4,7 @@ import type { PluginTimelineItemProps } from "@getpaseo/plugin/client";
 import { Icon } from "@getpaseo/plugin/client/react-native";
 import { useMemo, useState } from "react";
 import { Pressable, Text, View } from "react-native";
+import type { PluginTheme } from "@getpaseo/plugin";
 import type { DecisionCard } from "../shared/card";
 import { font, iconSize, radius, space, weight } from "./theme";
 
@@ -18,9 +19,15 @@ function pct(n: number): string {
   return `${Math.round(Math.min(1, Math.max(0, n)) * 100)}%`;
 }
 
+/** The timeline renderer: unwrap the plugin item and draw the shared card body. */
 export function JevDecisionCard({ item, theme }: PluginTimelineItemProps<DecisionCard>) {
+  return <DecisionCardView theme={theme} card={item.data} />;
+}
+
+/** The card body, reused by the timeline renderer and the queue's resolved-row expansion. */
+export function DecisionCardView({ theme, card }: { theme: PluginTheme; card: DecisionCard }) {
   const c = theme.colors;
-  const d = item.data;
+  const d = card;
   const [showWhy, setShowWhy] = useState(false);
 
   const verdictColor =
