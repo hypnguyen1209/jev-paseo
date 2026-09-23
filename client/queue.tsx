@@ -166,12 +166,25 @@ export function JevQueueScreen({
       {showAdd ? <JevForm theme={theme} add={add} compact={compact} onAdded={() => setShowAdd(false)} /> : null}
 
       <Text style={s.label}>decide with</Text>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6 }}>
-        <Chip theme={theme} active={activeModel === ""} label="default" onPress={() => setActiveModel("")} />
-        {models.map((m) => (
-          <Chip key={m.id} theme={theme} active={m.id === activeModel} label={m.label} onPress={() => setActiveModel(m.id)} />
-        ))}
-      </ScrollView>
+      {(() => {
+        const chips = (
+          <>
+            <Chip theme={theme} active={activeModel === ""} label="default" onPress={() => setActiveModel("")} />
+            {models.map((m) => (
+              <Chip key={m.id} theme={theme} active={m.id === activeModel} label={m.label} onPress={() => setActiveModel(m.id)} />
+            ))}
+          </>
+        );
+        // Compact popover: scroll a single row. Wide tab/surface: wrap so every model stays reachable
+        // (a horizontal row can get clipped in a narrow pane with no working horizontal scroll).
+        return compact ? (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6 }}>
+            {chips}
+          </ScrollView>
+        ) : (
+          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>{chips}</View>
+        );
+      })()}
 
       {pending.length > 1 ? (
         <Pressable
