@@ -87,6 +87,12 @@ export function JevSettings({ theme }: PluginSurfaceProps) {
           disabled={settings.saving}
           onValueChange={(s) => save({ samples: Number(s) })}
         />
+        {v.samples > 1 ? (
+          <Text style={{ color: theme.colors.foregroundMuted, fontSize: 12 }}>
+            Voting needs a provider that samples (temperature &gt; 0). Claude Code and Codex do by default; a
+            deterministic provider returns {v.samples} identical votes, so confidence collapses to 0% or 100%.
+          </Text>
+        ) : null}
         <SettingsSwitch
           label="STRICT by default (re-judge until confident)"
           value={v.strict}

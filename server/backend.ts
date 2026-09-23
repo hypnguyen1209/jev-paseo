@@ -59,7 +59,11 @@ export function makeLlmBackend(model: string, ask: AskFn, samples = 1): JudgeBac
         return out;
       }
 
-      // self-consistency: K parallel votes, then tally
+      // Self-consistency: K parallel votes, then tally. This only spreads probability if the
+      // provider samples (temperature > 0) — Claude Code / Codex do by default. Paseo has no
+      // model-agnostic temperature knob (agents.create only takes provider-validated `options`, and
+      // an unknown key can be rejected), so we don't force one: on a deterministic provider all K
+      // votes match and confidence collapses to 0/1. Documented on the `samples` setting.
       const prompt = buildVotePrompt(state, questions);
       const schema = buildVoteSchema(questions);
       const texts = await Promise.all(

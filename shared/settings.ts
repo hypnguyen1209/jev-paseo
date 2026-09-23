@@ -12,7 +12,11 @@ export const jevSettingsSchema = z
     /** medium-band floor: below this is "low" (escalate). */
     reviewFloor: z.number().min(0).max(1).default(0.6),
     maxRounds: z.number().int().min(1).max(5).default(2),
-    /** self-consistency: 1 = one self-reported distribution (fast); ≥2 = K votes tallied (calibrated). */
+    /**
+     * self-consistency: 1 = one self-reported distribution (fast); ≥2 = K votes tallied (calibrated).
+     * Voting only calibrates on a provider that samples (temperature > 0) — Claude Code / Codex do
+     * by default. A deterministic provider returns K identical votes, so confidence lands at 0/1.
+     */
     samples: z.number().int().min(1).max(9).default(1),
     /** shadow mode: judge + log + show a card, but DON'T resolve — for calibrating against your own picks. */
     shadow: z.boolean().default(false),

@@ -108,6 +108,8 @@ flowchart LR
 
 `samples = 1` skips the voting and asks the model to report a distribution in one shot. It's fast and cheap, though a self-reported number from an LLM carries little real calibration. `samples = 3` or `5` starts to mean something, at 3 to 5 times the cost. Pick the point on that curve you can afford. Either way the answer is schema-constrained, so the model can't return an option that doesn't exist. Constrained decoding gives you jev's "can't make a type error" property.
 
+Voting only calibrates on a provider that samples, meaning temperature above zero. Claude Code and Codex do by default. Paseo exposes no model-agnostic temperature knob, so on a deterministic provider the K votes come back identical and the confidence collapses to 0 or 100 percent. The settings screen says so next to the samples control.
+
 ## Running it
 
 Install it as a directory plugin. You need at least one provider configured in Paseo; that provider pool is where judge models come from.
