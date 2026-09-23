@@ -1,24 +1,25 @@
-// v0.3.0: app entry. Composer pill (judge-task queue) + agent panel + a full-tab surface (opened
-// from the sidebar, like a session) + command item + settings + the timeline renderer that draws
-// decision cards. No slash command. Synchronous contribute.
+// v0.4.0: app entry. Composer pill (judge-task queue) + a Jev workspace panel that shows in the
+// "+" tab menu and opens as a draggable / splittable tab + a full-screen surface (sidebar / command)
+// + settings + the timeline renderer that draws decision cards. No slash command. Sync contribute.
 import type { PluginClientContext } from "@getpaseo/plugin/client";
-import { JevPanel } from "./client/panel";
-import { JevSurface } from "./client/surface";
+import { JevSurface, JevWorkspacePanel } from "./client/surface";
 import { JevSettings } from "./client/settings";
 import { JevDecisionCard } from "./client/card";
 import { startJevPills } from "./client/pill";
 import { DecisionCardSchema, JEV_DECISION_KIND, JEV_DECISION_VERSION } from "./shared/card";
 
 export default function contribute(client: PluginClientContext) {
+  // Workspace-context panel: the "+" tab menu only lists workspace panels, and a workspace panel
+  // opens as a real tab you can drag and split next to Agent / Terminal / Browser.
   client.addWorkspacePanel({
     id: "jev",
     title: "Jev",
     icon: "Scale",
-    context: "agent",
-    Component: JevPanel,
+    context: "workspace",
+    Component: JevWorkspacePanel,
   });
 
-  // Full-tab surface + sidebar entry. Older hosts lack these; there we fall back to the docked panel.
+  // Also expose a full-screen surface + sidebar entry + a global command for it.
   const canSurface = typeof client.addSurface === "function";
   const keywords = ["jev", "decision", "judge", "task", "choice", "score", "verdict", "full", "screen"];
   if (canSurface) {

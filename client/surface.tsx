@@ -1,11 +1,20 @@
-// v0.3.0: the full-tab Jev surface. A sidebar item opens this as its own tab, like a session.
-// It lists the live sessions, lets you pick one, and renders that session's judge-task queue at
-// full width — the big view. Reuses JevQueueScreen; only the session picker is new here.
+// v0.4.0: the big Jev view, shared by two hosts:
+//   - JevWorkspacePanel (context "workspace") — shows in the "+" tab menu, opens as a real
+//     workspace tab you can drag and split alongside Agent / Terminal / Browser.
+//   - JevSurface — a full-screen sidebar/command route.
+// Both render JevBoard: a session picker plus the full-size JevQueueScreen for the picked session.
 import { useEffect, useMemo, useState } from "react";
 import { ScrollView, Text, View } from "react-native";
-import { usePaseo, type PluginSurfaceProps } from "@getpaseo/plugin/client";
+import {
+  usePaseo,
+  type PluginSurfaceProps,
+  type PluginWorkspacePanelProps,
+} from "@getpaseo/plugin/client";
+import type { PluginTheme } from "@getpaseo/plugin";
 import { JevQueueScreen } from "./queue";
 import { Chip } from "./ui";
+
+type Navigation = PluginSurfaceProps["navigation"];
 
 interface Session {
   id: string;
@@ -76,7 +85,8 @@ function useJevSessions(): Session[] {
   return sessions;
 }
 
-export function JevSurface({ theme, navigation }: PluginSurfaceProps) {
+/** The shared board: pick a session across the top, judge its tasks below, full width. */
+function JevBoard({ theme, navigation }: { theme: PluginTheme; navigation?: Navigation }) {
   const c = theme.colors;
   const sessions = useJevSessions();
   const [selectedId, setSelectedId] = useState("");
@@ -130,4 +140,14 @@ export function JevSurface({ theme, navigation }: PluginSurfaceProps) {
       )}
     </View>
   );
+}
+
+/** Workspace tab: appears in the "+" menu, drag- and split-able like Agent / Terminal / Browser. */
+export function JevWorkspacePanel({ theme, navigation }: PluginWorkspacePanelProps) {
+  return <JevBoard theme={theme} navigation={navigation} />;
+}
+
+/** Full-screen sidebar / command route. */
+export function JevSurface({ theme, navigation }: PluginSurfaceProps) {
+  return <JevBoard theme={theme} navigation={navigation} />;
 }
