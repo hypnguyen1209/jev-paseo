@@ -71,14 +71,18 @@ const fpct = (n: number): string => `${Math.round(Math.min(1, Math.max(0, n)) * 
 
 /** Feedback fires when the Jev setting is on, or the JEV_FEEDBACK=1 env (for the hook/auto-judge path). */
 const feedbackEnabled = (cfg: JevSettingsValues): boolean => cfg.feedback || process.env.JEV_FEEDBACK === "1";
+/** With feedback on, also send back non-marker tasks (ones you created), when this is set. */
+const feedbackAllEnabled = (cfg: JevSettingsValues): boolean => cfg.feedbackAll || process.env.JEV_FEEDBACK_ALL === "1";
 
 /**
- * Close the agent → plugin → agent loop: when a task the agent pushed via a [jev] marker resolves,
- * feed the decision back into its session so the coding agent can act on it. Opt-in (JEV_FEEDBACK=1),
- * marker-only, best-effort — a send failure never affects the resolution.
+ * Close the agent → plugin → agent loop: when a task resolves, feed the decision back into its
+ * session so the coding agent can act on it. Opt-in (`enabled`); by default only tasks the agent
+ * pushed via a [jev] marker, unless `all` opts in your own tasks too. Best-effort — a send failure
+ * never affects the resolution.
  */
-async function sendFeedback(context: PluginHandlerContext, task: JevTask, card: DecisionCard, enabled: boolean): Promise<void> {
-  if (!enabled || task.source !== "marker") return;
+async function sendFeedback(context: PluginHandlerContext, task: JevTask, card: DecisionCard, enabled: boolean, all: boolean): Promise<void> {
+  if (!enabled) return;
+  if (task.source !== "marker" && !all) return; // by default only feed back tasks the agent asked for
   const who = card.decidedBy === "user" ? "you" : card.model || "a model";
   const line = `[jev] Decision on "${task.instructions}": ${card.answerLabel} — ${card.band ?? "?"} confidence (${fpct(
     card.confidence,
@@ -188,7 +192,7 @@ export async function judgeTask(
   if (!updated) return { ok: true, task: getTask(task.id) ?? task };
   logModel(task, result, model, false);
   await appendCard(context, task.agentId, card);
-  await sendFeedback(context, task, card, feedbackEnabled(defaults));
+  await sendFeedback(context, task, card, feedbackEnabled(defaults), feedbackAllEnabled(defaults));
   return { ok: true, task: updated };
 }
 
@@ -295,7 +299,7 @@ export function judgeAllHandler() {
       const done = judgedList.filter((j) => applied.has(j.task.id));
       for (const j of done) logModel(j.task, j.result, j.model, false);
       await Promise.all(done.map((j) => appendCard(context, j.task.agentId, j.card)));
-      await Promise.all(done.map((j) => sendFeedback(context, j.task, j.card, feedbackEnabled(defaults))));
+      await Promise.all(done.map((j) => sendFeedback(context, j.task, j.card, feedbackEnabled(defaults), feedbackAllEnabled(defaults))));
       return {
         resolved: done.length,
         note: done.length ? undefined : `No tasks judged: ${lastErr instanceof Error ? lastErr.message : "model error"}`,
@@ -334,7 +338,7 @@ export function resolveTaskHandler() {
         createdAt: new Date().toISOString(),
       });
       await appendCard(context, task.agentId, card);
-      await sendFeedback(context, task, card, feedbackEnabled(input.config));
+      await sendFeedback(context, task, card, feedbackEnabled(input.config), feedbackAllEnabled(input.config));
       return { ok: true, task: updated ?? task };
     } catch (e) {
       return { ok: false, note: e instanceof Error ? e.message : String(e) };

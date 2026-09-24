@@ -23,6 +23,9 @@ export const jevSettingsSchema = z
     /** feedback: when a task the agent pushed via a [jev] marker resolves, send the verdict back into
      * its session with agents.send so the agent continues. Also enabled by the JEV_FEEDBACK=1 env. */
     feedback: z.boolean().default(false),
+    /** feedbackAll: with feedback on, also send back tasks you created yourself, not just marker ones.
+     * Also enabled by JEV_FEEDBACK_ALL=1. Off by default so your own tasks don't nudge the agent. */
+    feedbackAll: z.boolean().default(false),
   })
   // reviewFloor is the medium/low cutoff and must sit at or below the high-band threshold, else the
   // medium band is unreachable and bandOf would auto-accept below the user's review floor.

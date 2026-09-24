@@ -160,6 +160,17 @@ describe("agent feedback loop (JEV_FEEDBACK)", () => {
     expect(r.sent).toHaveLength(1);
     expect(r.sent[0]).toContain("decided by you");
   });
+  it("feedbackAll also feeds back a task you created (non-marker); off by default", async () => {
+    const on = fbContext();
+    addTask(mk("FB6", "fb6")); // no source (user-created)
+    await resolveTaskHandler()({ id: "FB6", choiceKey: "yes", config: cfg({ feedback: true, feedbackAll: true }) }, on.context);
+    expect(on.sent).toHaveLength(1);
+
+    const off = fbContext();
+    addTask(mk("FB7", "fb7"));
+    await resolveTaskHandler()({ id: "FB7", choiceKey: "yes", config: cfg({ feedback: true }) }, off.context); // feedbackAll off
+    expect(off.sent).toHaveLength(0);
+  });
 });
 
 describe("addTaskHandler", () => {

@@ -134,7 +134,7 @@ An agent can queue its own decisions by writing a marker line in its output:
 
 Paseo won't let a plugin expose a tool to the agent or intercept a tool call before it runs. The marker is the seam that's left. An `agent.turn_ended` observer picks it up and turns it into a pending task, de-duped so asking twice doesn't queue twice. The hook parses markers the same way for every provider, so `claude`, `codex`, and `pi` all use it identically. Teaching the agent to write them is opt-in: flip `JEV_HOOK_INSTRUCT=1` to inject the convention into every agent, or run `bash integrations/install.sh` to drop it into the file each harness reads (Claude Code skill or `CLAUDE.md`, Codex `AGENTS.md`, Pi `APPEND_SYSTEM.md`). See [`integrations/`](integrations/).
 
-Turn on **Send the verdict back to the agent** in Settings → Jev (or set `JEV_FEEDBACK=1`, which also covers the auto-judge path) to close the loop: when a marker task resolves (a model judged it or you picked), jev sends the decision back into that session with `agents.send`, so the coding agent reads the verdict and keeps going. It fires only for tasks the agent pushed, and a send failure never touches the resolution. It stays off by default so a resolution doesn't interrupt you unasked.
+Turn on **Send the verdict back to the agent** in Settings → Jev (or set `JEV_FEEDBACK=1`, which also covers the auto-judge path) to close the loop: when a task resolves (a model judged it or you picked), jev sends the decision back into that session with `agents.send`, so the coding agent reads the verdict and keeps going. By default it fires only for tasks the agent pushed via a marker; flip the second switch (or set `JEV_FEEDBACK_ALL=1`) to also feed back tasks you created yourself. A send failure never touches the resolution, and it stays off by default so a resolution doesn't interrupt you unasked.
 
 ### Knobs
 
@@ -150,6 +150,7 @@ Settings live under **Settings → Jev**. The env vars only matter for the agent
 | `JEV_HOOK_INSTRUCT=1` | Inject the marker convention into agent prompts. |
 | `JEV_HOOK_AUTOJUDGE=1` + `JEV_HOOK_MODEL` / `JEV_HOOK_SAMPLES` | Auto-judge marker tasks instead of leaving them for you. |
 | Send verdict back (setting) or `JEV_FEEDBACK=1` | Send a resolved marker task's verdict back into the agent's session. |
+| Also your own tasks (setting) or `JEV_FEEDBACK_ALL=1` | Extend the feedback to tasks you created, not just marker ones. |
 
 Tasks persist to `~/.paseo/plugin-data/jev-tasks.json`, and every decision (yours and the model's) is appended to `jev-decisions.jsonl`, which is what the agreement/regret stat reads. Tap the stats line under the queue to expand a calibration view: a model-confidence histogram, the band mix, and a recent-decisions strip (faded squares are your own picks). **Export CSV** there pulls the full decision log for that session so you can chart regret and agreement in a spreadsheet (desktop and web; on mobile it says so with a toast).
 

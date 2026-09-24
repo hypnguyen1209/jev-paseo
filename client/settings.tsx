@@ -107,6 +107,12 @@ export function JevSettings({ theme }: PluginSurfaceProps) {
           disabled={settings.saving}
           onValueChange={(feedback) => save({ feedback })}
         />
+        <SettingsSwitch
+          label="…including tasks you created yourself, not just the agent's"
+          value={v.feedbackAll}
+          disabled={settings.saving || !v.feedback}
+          onValueChange={(feedbackAll) => save({ feedbackAll })}
+        />
         <SettingsSelect
           label="Auto-accept — high band (STRICT gate)"
           value={String(v.threshold)}
