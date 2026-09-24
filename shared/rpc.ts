@@ -96,6 +96,30 @@ export const JevJudgeAllRpc = defineRpc({
   output: z.object({ resolved: z.number(), note: z.string().optional() }),
 });
 
+/** One decision-log record, for CSV export. Mirrors server/log.ts DecisionLog. */
+export const DecisionLogRecordSchema = z.object({
+  taskId: z.string(),
+  agentId: z.string(),
+  type: z.enum(["noul", "choice", "score"]),
+  instructions: z.string(),
+  model: z.string(),
+  decidedBy: z.enum(["user", "model"]),
+  verdict: z.string(),
+  band: z.enum(["high", "medium", "low"]).optional(),
+  confidence: z.number(),
+  chosen: z.string(),
+  shadow: z.boolean(),
+  createdAt: z.string(),
+});
+export type DecisionLogRecord = z.infer<typeof DecisionLogRecordSchema>;
+
+/** The raw decision log for an agent, for exporting to CSV. */
+export const JevExportRpc = defineRpc({
+  name: "jev.export",
+  input: z.object({ agentId: z.string() }),
+  output: z.object({ records: z.array(DecisionLogRecordSchema) }),
+});
+
 /** Calibration stats from the decision log. */
 export const JevStatsRpc = defineRpc({
   name: "jev.stats",

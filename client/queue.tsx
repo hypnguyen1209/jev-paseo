@@ -3,11 +3,14 @@
 // MODEL (tap "Ask model"). Resolving emits the decision card into the session timeline.
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Pressable, ScrollView, Text, View } from "react-native";
-import { useSettings } from "@getpaseo/plugin/client";
+import { useRpc, useSettings } from "@getpaseo/plugin/client";
 import { Icon, useToast } from "@getpaseo/plugin/client/react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
 import { jevSettings } from "../shared/settings";
+import { JevExportRpc } from "../shared/rpc";
 import { taskOptions, type JevTask } from "../shared/task";
+import { toCsv } from "./csv";
+import { downloadCsv } from "./web";
 import { Button, Chip, Dropdown } from "./ui";
 import { font, iconSize, radius, space, weight } from "./theme";
 import { DecisionCardView } from "./card";
@@ -174,6 +177,7 @@ export function JevQueueScreen({
   const { pending, resolved, stats, busyId, busyAll, add, update, judge, judgeAll, rejudge, resolve, remove } =
     useJevTasks(workspaceId, agentId, cwd);
   const toast = useToast();
+  const exportRpc = useRpc(JevExportRpc);
   const [activeModel, setActiveModelState] = useState(() => rememberedModel.get(agentId) ?? "");
   const [showAdd, setShowAdd] = useState(false);
   const [showCalib, setShowCalib] = useState(false);
@@ -240,6 +244,18 @@ export function JevQueueScreen({
     },
     [rejudge, activeModel, toast],
   );
+  const onExportCsv = useCallback(async () => {
+    try {
+      const { records } = await exportRpc({ agentId });
+      if (!records.length) return toast.show("No decisions to export yet", { variant: "info" });
+      const ok = downloadCsv("jev-decisions.csv", toCsv(records));
+      toast.show(ok ? `Exported ${records.length} decisions` : "Export needs the desktop or web app", {
+        variant: ok ? "success" : "warning",
+      });
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Export failed");
+    }
+  }, [exportRpc, agentId, toast]);
 
   const s = useMemo(
     () => ({
@@ -371,7 +387,7 @@ export function JevQueueScreen({
             </Text>
             <Icon name={showCalib ? "ChevronDown" : "ChevronRight"} size={iconSize.sm} color={c.foregroundMuted} />
           </Pressable>
-          {showCalib ? <CalibrationView theme={theme} stats={stats} /> : null}
+          {showCalib ? <CalibrationView theme={theme} stats={stats} onExportCsv={onExportCsv} /> : null}
         </View>
       ) : null}
     </ScrollView>

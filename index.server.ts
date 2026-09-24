@@ -9,6 +9,7 @@ import {
   JevModelsRpc,
   JevRemoveTaskRpc,
   JevReopenTaskRpc,
+  JevExportRpc,
   JevResolveTaskRpc,
   JevStatsRpc,
   JevUpdateTaskRpc,
@@ -18,6 +19,7 @@ import { modelsHandler } from "./server/models";
 import { registerJevHook } from "./server/hook";
 import {
   addTaskHandler,
+  exportHandler,
   judgeAllHandler,
   judgeTaskHandler,
   listTasksHandler,
@@ -42,6 +44,7 @@ export default function contribute(server: PluginServerContext) {
   server.handle(JevRemoveTaskRpc, removeTaskHandler());
   server.handle(JevReopenTaskRpc, reopenTaskHandler());
   server.handle(JevStatsRpc, statsHandler());
+  server.handle(JevExportRpc, exportHandler());
   registerJevHook(server); // agents can push jev questions via `[jev] …` markers
   return () => {};
 }

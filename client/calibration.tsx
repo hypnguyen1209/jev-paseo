@@ -4,6 +4,7 @@ import { Text, View } from "react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
 import type { JevStats } from "./use-jev";
 import { font, radius, space, weight } from "./theme";
+import { Button } from "./ui";
 
 const HIST_LABELS = ["0–20", "20–40", "40–60", "60–80", "80–100"];
 
@@ -44,7 +45,15 @@ function StatBar({
   );
 }
 
-export function CalibrationView({ theme, stats }: { theme: PluginTheme; stats: JevStats }) {
+export function CalibrationView({
+  theme,
+  stats,
+  onExportCsv,
+}: {
+  theme: PluginTheme;
+  stats: JevStats;
+  onExportCsv?: () => void;
+}) {
   const c = theme.colors;
   if (stats.total === 0) {
     return <Text style={{ color: c.foregroundMuted, fontSize: font.sm }}>No decisions logged yet.</Text>;
@@ -63,7 +72,10 @@ export function CalibrationView({ theme, stats }: { theme: PluginTheme; stats: J
         backgroundColor: c.surface1,
       }}
     >
-      <Text style={{ color: c.foreground, fontWeight: weight.semibold, fontSize: font.base }}>Calibration</Text>
+      <View style={{ flexDirection: "row", alignItems: "center", gap: space[2] }}>
+        <Text style={{ color: c.foreground, fontWeight: weight.semibold, fontSize: font.base, flex: 1 }}>Calibration</Text>
+        {onExportCsv ? <Button theme={theme} variant="secondary" icon="Download" label="Export CSV" onPress={onExportCsv} /> : null}
+      </View>
 
       {stats.agreementRate !== null ? (
         <StatBar

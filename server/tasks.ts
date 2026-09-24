@@ -11,6 +11,7 @@ import {
   JevListTasksRpc,
   JevRemoveTaskRpc,
   JevReopenTaskRpc,
+  JevExportRpc,
   JevResolveTaskRpc,
   JevStatsRpc,
   JevUpdateTaskRpc,
@@ -351,5 +352,11 @@ export function reopenTaskHandler() {
 export function statsHandler() {
   return async (input: RpcInput<typeof JevStatsRpc>): Promise<RpcOutput<typeof JevStatsRpc>> => {
     return aggregate(readLog(input.agentId));
+  };
+}
+
+export function exportHandler() {
+  return async (input: RpcInput<typeof JevExportRpc>): Promise<RpcOutput<typeof JevExportRpc>> => {
+    return { records: readLog(input.agentId) };
   };
 }

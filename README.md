@@ -151,7 +151,7 @@ Settings live under **Settings → Jev**. The env vars only matter for the agent
 | `JEV_HOOK_AUTOJUDGE=1` + `JEV_HOOK_MODEL` / `JEV_HOOK_SAMPLES` | Auto-judge marker tasks instead of leaving them for you. |
 | `JEV_FEEDBACK=1` | Send a resolved marker task's verdict back into the agent's session. |
 
-Tasks persist to `~/.paseo/plugin-data/jev-tasks.json`, and every decision (yours and the model's) is appended to `jev-decisions.jsonl`, which is what the agreement/regret stat reads. Tap the stats line under the queue to expand a calibration view: a model-confidence histogram, the band mix, and a recent-decisions strip (faded squares are your own picks).
+Tasks persist to `~/.paseo/plugin-data/jev-tasks.json`, and every decision (yours and the model's) is appended to `jev-decisions.jsonl`, which is what the agreement/regret stat reads. Tap the stats line under the queue to expand a calibration view: a model-confidence histogram, the band mix, and a recent-decisions strip (faded squares are your own picks). **Export CSV** there pulls the full decision log for that session so you can chart regret and agreement in a spreadsheet (desktop and web; on mobile it says so with a toast).
 
 ## What it doesn't do
 
