@@ -2,7 +2,7 @@
 
 > Copy the line below as the issue title, and everything under "Body" as the issue body.
 
-**Title:** `Plugins can't notify the user (OS / push) — expose a plugin notification or attention API`
+**Title:** `Plugins can't notify the user (OS / push): expose a plugin notification or attention API`
 
 ---
 
