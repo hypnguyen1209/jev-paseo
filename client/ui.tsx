@@ -6,8 +6,45 @@ import { Pressable, ScrollView, Text, View, type PressableStateCallbackType } fr
 import { Icon } from "@getpaseo/plugin/client/react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
 import { controlHeight, font, iconSize, radius, space, weight } from "./theme";
+import { withAlpha } from "./format";
 
 type Hover = PressableStateCallbackType & { hovered?: boolean };
+
+/**
+ * A soft status pill (herald's reasonPill): a tinted rounded tag with an optional leading icon, in
+ * one tone colour. The background is the tone at ~13% alpha; if the tone isn't a #RRGGBB colour (some
+ * themes use rgb()), withAlpha passes it through unchanged, so fall back to surface2 to stay legible.
+ */
+export function Pill({
+  theme,
+  tone,
+  label,
+  icon,
+}: {
+  theme: PluginTheme;
+  tone: string;
+  label: string;
+  icon?: string;
+}) {
+  const tint = withAlpha(tone, "22");
+  const bg = tint === tone ? theme.colors.surface2 : tint;
+  return (
+    <View
+      style={{
+        flexDirection: "row",
+        alignItems: "center",
+        gap: space[1],
+        paddingHorizontal: space[1.5],
+        paddingVertical: 2,
+        borderRadius: radius.full,
+        backgroundColor: bg,
+      }}
+    >
+      {icon ? <Icon name={icon} size={iconSize.xs} color={tone} /> : null}
+      <Text style={{ color: tone, fontSize: font.sm, fontWeight: weight.semibold }}>{label}</Text>
+    </View>
+  );
+}
 
 // Only one dropdown open at a time: opening one closes whichever was open (they render inline, so
 // there's no backdrop to dismiss them otherwise).

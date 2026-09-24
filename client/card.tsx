@@ -7,12 +7,19 @@ import { Pressable, Text, View } from "react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
 import type { DecisionCard } from "../shared/card";
 import { font, iconSize, radius, space, weight } from "./theme";
+import { Pill } from "./ui";
 
 const VERDICT_ICON: Record<DecisionCard["verdict"], string> = {
   sufficient: "Scale",
   insufficient: "TriangleAlert",
   decided: "Scale",
   error: "TriangleAlert",
+};
+
+const BAND_ICON: Record<"high" | "medium" | "low", string> = {
+  high: "CircleCheck",
+  medium: "CircleAlert",
+  low: "CircleX",
 };
 
 function pct(n: number): string {
@@ -56,18 +63,8 @@ export function DecisionCardView({ theme, card }: { theme: PluginTheme; card: De
         padding: space[3],
         backgroundColor: c.surface1,
       },
-      header: { flexDirection: "row" as const, alignItems: "center" as const, gap: space[2] },
+      header: { flexDirection: "row" as const, alignItems: "center" as const, gap: space[1.5] },
       title: { color: c.foreground, fontWeight: weight.semibold, fontSize: font.base, flex: 1 },
-      badge: {
-        color: c.accentForeground,
-        backgroundColor: c.accent,
-        fontSize: font.sm,
-        fontWeight: weight.semibold,
-        paddingHorizontal: space[1.5],
-        paddingVertical: 2,
-        borderRadius: radius.full,
-        overflow: "hidden" as const,
-      },
       answer: { color: verdictColor, fontSize: font.lg, fontWeight: weight.bold },
       row: { flexDirection: "row" as const, alignItems: "center" as const, gap: space[2] },
       optLabel: { color: c.foreground, fontSize: font.base, flex: 1 },
@@ -87,12 +84,10 @@ export function DecisionCardView({ theme, card }: { theme: PluginTheme; card: De
       <View style={s.header}>
         <Text style={s.title}>{d.instructions}</Text>
         {d.band && d.verdict !== "error" ? (
-          <Text style={[s.badge, { backgroundColor: bandColor, color: c.surface0 }]}>{d.band}</Text>
+          <Pill theme={theme} tone={bandColor} icon={BAND_ICON[d.band]} label={d.band} />
         ) : null}
-        {d.strict ? <Text style={s.badge}>STRICT</Text> : null}
-        {d.shadow ? (
-          <Text style={[s.badge, { backgroundColor: c.surface2, color: c.foregroundMuted }]}>shadow</Text>
-        ) : null}
+        {d.strict ? <Pill theme={theme} tone={c.foregroundMuted} icon="Lock" label="STRICT" /> : null}
+        {d.shadow ? <Pill theme={theme} tone={c.foregroundMuted} icon="EyeOff" label="shadow" /> : null}
       </View>
 
       {d.description ? <Text style={{ color: c.foregroundMuted, fontSize: font.sm }}>{d.description}</Text> : null}

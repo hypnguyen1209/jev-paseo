@@ -11,7 +11,8 @@ import { JevExportRpc } from "../shared/rpc";
 import { taskOptions, type JevTask } from "../shared/task";
 import { toCsv } from "./csv";
 import { downloadCsv } from "./web";
-import { Button, Chip, Dropdown } from "./ui";
+import { Button, Chip, Dropdown, Pill } from "./ui";
+import { relativeTime } from "./format";
 import { font, iconSize, radius, space, weight } from "./theme";
 import { DecisionCardView } from "./card";
 import { CalibrationView } from "./calibration";
@@ -21,6 +22,13 @@ import { shortModel, useJevModels, useJevTasks, type JevModel } from "./use-jev"
 // Remember each agent's "decide with" pick for the session, so reopening the queue keeps it instead
 // of snapping back to the default model.
 const rememberedModel = new Map<string, string>();
+
+// A task's shape shown as a soft pill (icon + label), so the row reads at a glance.
+const TYPE_PILL: Record<JevTask["type"], { icon: string; label: string }> = {
+  noul: { icon: "CircleHelp", label: "yes/no" },
+  choice: { icon: "List", label: "choice" },
+  score: { icon: "Gauge", label: "score" },
+};
 
 function TaskRow({
   theme,
@@ -47,6 +55,7 @@ function TaskRow({
   const c = theme.colors;
   const opts = taskOptions(task);
   const modelLabel = shortModel(task.model || activeModel || "default model");
+  const pillType = TYPE_PILL[task.type];
   return (
     <View
       style={{
@@ -58,11 +67,12 @@ function TaskRow({
         backgroundColor: c.surface1,
       }}
     >
-      <View style={{ flexDirection: "row", alignItems: "center", gap: space[2] }}>
-        <Text style={{ color: c.foreground, fontWeight: weight.semibold, fontSize: font.base, flex: 1 }}>
+      <View style={{ flexDirection: "row", alignItems: "center", gap: space[1.5] }}>
+        <Pill theme={theme} tone={c.foregroundMuted} icon={pillType.icon} label={pillType.label} />
+        <Text style={{ color: c.foreground, fontWeight: weight.semibold, fontSize: font.base, flex: 1 }} numberOfLines={2}>
           {task.instructions}
         </Text>
-        <Text style={{ color: c.foregroundMuted, fontSize: font.sm }}>{task.type}</Text>
+        <Text style={{ color: c.foregroundMuted, fontSize: font.sm }}>{relativeTime(task.createdAt)}</Text>
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="edit task"
@@ -178,13 +188,14 @@ export function JevQueueScreen({
   const c = theme.colors;
   const settings = useSettings(jevSettings);
   const { models, note: modelsNote } = useJevModels(cwd);
-  const { pending, resolved, stats, busyId, busyAll, add, update, judge, judgeAll, rejudge, resolve, remove } =
+  const { pending, resolved, stats, busyId, busyAll, refresh, add, update, judge, judgeAll, rejudge, resolve, remove } =
     useJevTasks(workspaceId, agentId, cwd);
   const toast = useToast();
   const exportRpc = useRpc(JevExportRpc);
   const [activeModel, setActiveModelState] = useState(() => rememberedModel.get(agentId) ?? "");
   const [showAdd, setShowAdd] = useState(false);
   const [showCalib, setShowCalib] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const editingTask = editingId ? pending.find((t) => t.id === editingId) ?? null : null;
 
@@ -236,6 +247,14 @@ export function JevQueueScreen({
     [resolve, toast],
   );
   const onRemove = useCallback((id: string) => void remove(id), [remove]);
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await refresh();
+    } finally {
+      setRefreshing(false);
+    }
+  }, [refresh]);
   const onJudgeAll = useCallback(async () => {
     const r = await judgeAll();
     if (r.resolved) toast.show(`judged ${r.resolved}`, { variant: "success" });
@@ -279,6 +298,16 @@ export function JevQueueScreen({
         <Icon name="Scale" size={iconSize.md} color={c.foreground} />
         <Text style={s.title}>Judge tasks</Text>
         <Text style={s.count}>{pending.length} pending</Text>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="refresh"
+          hitSlop={8}
+          disabled={refreshing}
+          onPress={onRefresh}
+          style={{ padding: space[1] }}
+        >
+          <Icon name={refreshing ? "Loader" : "RotateCw"} size={iconSize.md} color={c.foregroundMuted} />
+        </Pressable>
         <Chip
           theme={theme}
           active={showAdd}
@@ -345,7 +374,13 @@ export function JevQueueScreen({
       ) : null}
 
       {pending.length === 0 ? (
-        <Text style={s.muted}>No pending judge tasks. Add one with “＋ new”.</Text>
+        <View style={{ alignItems: "center", gap: space[1], paddingVertical: space[4] }}>
+          <Icon name="Scale" size={iconSize.lg} color={c.foregroundMuted} />
+          <Text style={{ color: c.foreground, fontSize: font.base, fontWeight: weight.semibold }}>No pending decisions</Text>
+          <Text style={[s.muted, { textAlign: "center" }]}>
+            Add one with “＋ new”, or an agent can queue one with a [jev] line.
+          </Text>
+        </View>
       ) : (
         pending.map((t) => (
           <TaskRow
