@@ -148,6 +148,18 @@ describe("agent feedback loop (JEV_FEEDBACK)", () => {
     delete process.env.JEV_FEEDBACK;
     expect(nonMarker.sent).toHaveLength(0);
   });
+  it("feeds back via the feedback setting (no env), including a user resolution", async () => {
+    const j = fbContext();
+    addTask(mk("FB4", "fb4", { source: "marker" }));
+    await judgeTaskHandler()({ id: "FB4", config: cfg({ feedback: true }) }, j.context);
+    expect(j.sent).toHaveLength(1);
+
+    const r = fbContext();
+    addTask(mk("FB5", "fb5", { source: "marker" }));
+    await resolveTaskHandler()({ id: "FB5", choiceKey: "yes", config: cfg({ feedback: true }) }, r.context);
+    expect(r.sent).toHaveLength(1);
+    expect(r.sent[0]).toContain("decided by you");
+  });
 });
 
 describe("addTaskHandler", () => {
@@ -181,7 +193,7 @@ describe("listTasksHandler", () => {
 describe("resolveTaskHandler (user pick)", () => {
   it("valid key → resolved + user log", async () => {
     addTask(mk("R1", "res"));
-    const res = await resolveTaskHandler()({ id: "R1", choiceKey: "yes" }, fakeContext().context);
+    const res = await resolveTaskHandler()({ id: "R1", choiceKey: "yes", config: cfg() }, fakeContext().context);
     expect(res.ok).toBe(true);
     expect(getTask("R1")?.status).toBe("resolved");
     expect(getTask("R1")?.decidedBy).toBe("user");
@@ -189,12 +201,12 @@ describe("resolveTaskHandler (user pick)", () => {
   });
   it("unknown option key → rejected, task stays pending", async () => {
     addTask(mk("R2", "res"));
-    const res = await resolveTaskHandler()({ id: "R2", choiceKey: "maybe" }, fakeContext().context);
+    const res = await resolveTaskHandler()({ id: "R2", choiceKey: "maybe", config: cfg() }, fakeContext().context);
     expect(res.ok).toBe(false);
     expect(getTask("R2")?.status).toBe("pending");
   });
   it("not found → error", async () => {
-    expect((await resolveTaskHandler()({ id: "ghost", choiceKey: "yes" }, fakeContext().context)).ok).toBe(false);
+    expect((await resolveTaskHandler()({ id: "ghost", choiceKey: "yes", config: cfg() }, fakeContext().context)).ok).toBe(false);
   });
 });
 
@@ -247,7 +259,7 @@ describe("judgeTaskHandler", () => {
   });
   it("model judge does NOT overwrite a user resolution (concurrency guard)", async () => {
     addTask(mk("G1", "guard"));
-    await resolveTaskHandler()({ id: "G1", choiceKey: "yes" }, fakeContext().context);
+    await resolveTaskHandler()({ id: "G1", choiceKey: "yes", config: cfg() }, fakeContext().context);
     await judgeTaskHandler()({ id: "G1", config: cfg() }, fakeContext().context);
     expect(getTask("G1")?.status).toBe("resolved");
     expect(getTask("G1")?.decidedBy).toBe("user");

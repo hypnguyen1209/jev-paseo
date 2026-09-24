@@ -20,6 +20,9 @@ export const jevSettingsSchema = z
     samples: z.number().int().min(1).max(9).default(1),
     /** shadow mode: judge + log + show a card, but DON'T resolve — for calibrating against your own picks. */
     shadow: z.boolean().default(false),
+    /** feedback: when a task the agent pushed via a [jev] marker resolves, send the verdict back into
+     * its session with agents.send so the agent continues. Also enabled by the JEV_FEEDBACK=1 env. */
+    feedback: z.boolean().default(false),
   })
   // reviewFloor is the medium/low cutoff and must sit at or below the high-band threshold, else the
   // medium band is unreachable and bandOf would auto-accept below the user's review floor.

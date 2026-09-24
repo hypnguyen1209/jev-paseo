@@ -139,7 +139,7 @@ export function useJevTasks(workspaceId: string, agentId: string, cwd: string): 
     },
     onSuccess: invBoth,
   });
-  const resolveM = useMutation({ mutationFn: (v: { id: string; choiceKey: string }) => resolveRpc({ id: v.id, choiceKey: v.choiceKey }), onSuccess: invBoth });
+  const resolveM = useMutation({ mutationFn: (v: { id: string; choiceKey: string }) => resolveRpc({ id: v.id, choiceKey: v.choiceKey, config }), onSuccess: invBoth });
   const judgeAllM = useMutation({ mutationFn: () => judgeAllRpc({ workspaceId, agentId, config }), onSuccess: invBoth });
 
   const busyId =

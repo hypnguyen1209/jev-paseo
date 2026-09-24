@@ -71,10 +71,11 @@ export const JevJudgeTaskRpc = defineRpc({
   output: okTask,
 });
 
-/** Resolve a task manually — the user picks an option key. */
+/** Resolve a task manually — the user picks an option key. `config` carries the effective settings
+ *  (0.8.0 has no server settings read) so the feedback toggle applies to a user resolution too. */
 export const JevResolveTaskRpc = defineRpc({
   name: "jev.resolve-task",
-  input: z.object({ id: z.string(), choiceKey: z.string() }),
+  input: z.object({ id: z.string(), choiceKey: z.string(), config: jevSettingsSchema }),
   output: okTask,
 });
 

@@ -101,6 +101,12 @@ export function JevSettings({ theme }: PluginSurfaceProps) {
           disabled={settings.saving}
           onValueChange={(shadow) => save({ shadow })}
         />
+        <SettingsSwitch
+          label="Send the verdict back to the agent (tasks it pushed via [jev])"
+          value={v.feedback}
+          disabled={settings.saving}
+          onValueChange={(feedback) => save({ feedback })}
+        />
         <SettingsSelect
           label="Auto-accept — high band (STRICT gate)"
           value={String(v.threshold)}
