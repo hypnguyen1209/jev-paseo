@@ -79,6 +79,8 @@ export interface UseJevTasks {
   pending: JevTask[];
   resolved: JevTask[];
   stats: JevStats | null;
+  /** true on the first fetch, before any task data has arrived (drives the loading spinner). */
+  loading: boolean;
   busyId: string | null;
   busyAll: boolean;
   refresh: () => Promise<void>;
@@ -164,6 +166,7 @@ export function useJevTasks(workspaceId: string, agentId: string, cwd: string): 
     pending,
     resolved,
     stats: statsQuery.data ?? null,
+    loading: tasksQuery.isLoading,
     busyId,
     busyAll,
     refresh: async () => {

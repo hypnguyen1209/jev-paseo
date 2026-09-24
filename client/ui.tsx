@@ -2,7 +2,7 @@
 // look (hover = surface2, selection = a trailing check, not a fill), the same button geometry, and
 // real lucide icons via the host's Icon component.
 import { useCallback, useEffect, useState } from "react";
-import { Pressable, ScrollView, Text, View, type PressableStateCallbackType } from "react-native";
+import { ActivityIndicator, Pressable, ScrollView, Text, View, type PressableStateCallbackType } from "react-native";
 import { Icon } from "@getpaseo/plugin/client/react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
 import { controlHeight, font, iconSize, radius, space, weight } from "./theme";
@@ -131,7 +131,11 @@ export function Button({
         alignSelf: block ? "stretch" : "flex-start",
       })}
     >
-      {icon ? <Icon name={icon} size={iconSize.sm} color={fg} /> : null}
+      {busy ? (
+        <ActivityIndicator size="small" color={fg} />
+      ) : icon ? (
+        <Icon name={icon} size={iconSize.sm} color={fg} />
+      ) : null}
       <Text style={{ color: fg, fontSize: font.base, fontWeight: weight.medium }}>{label}</Text>
     </Pressable>
   );

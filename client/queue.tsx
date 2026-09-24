@@ -2,7 +2,7 @@
 // Shows every pending decision; each row can be resolved by the USER (tap an option) or by a
 // MODEL (tap "Ask model"). Resolving emits the decision card into the session timeline.
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Pressable, ScrollView, Text, View } from "react-native";
+import { ActivityIndicator, Pressable, ScrollView, Text, View } from "react-native";
 import { useRpc, useSettings } from "@getpaseo/plugin/client";
 import { Icon, useToast } from "@getpaseo/plugin/client/react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
@@ -152,7 +152,11 @@ function ResolvedRow({
           {r?.verdict} · {by}
         </Text>
         {canExpand ? (
-          <Icon name={busy ? "Loader" : open ? "ChevronDown" : "ChevronRight"} size={iconSize.sm} color={c.foregroundMuted} />
+          busy ? (
+            <ActivityIndicator size="small" color={c.foregroundMuted} />
+          ) : (
+            <Icon name={open ? "ChevronDown" : "ChevronRight"} size={iconSize.sm} color={c.foregroundMuted} />
+          )
         ) : null}
       </Pressable>
       {open && r ? (
@@ -188,7 +192,7 @@ export function JevQueueScreen({
   const c = theme.colors;
   const settings = useSettings(jevSettings);
   const { models, note: modelsNote } = useJevModels(cwd);
-  const { pending, resolved, stats, busyId, busyAll, refresh, add, update, judge, judgeAll, rejudge, resolve, remove } =
+  const { pending, resolved, stats, loading, busyId, busyAll, refresh, add, update, judge, judgeAll, rejudge, resolve, remove } =
     useJevTasks(workspaceId, agentId, cwd);
   const toast = useToast();
   const exportRpc = useRpc(JevExportRpc);
@@ -306,7 +310,11 @@ export function JevQueueScreen({
           onPress={onRefresh}
           style={{ padding: space[1] }}
         >
-          <Icon name={refreshing ? "Loader" : "RotateCw"} size={iconSize.md} color={c.foregroundMuted} />
+          {refreshing ? (
+            <ActivityIndicator size="small" color={c.foregroundMuted} />
+          ) : (
+            <Icon name="RotateCw" size={iconSize.md} color={c.foregroundMuted} />
+          )}
         </Pressable>
         <Chip
           theme={theme}
@@ -373,7 +381,11 @@ export function JevQueueScreen({
         />
       ) : null}
 
-      {pending.length === 0 ? (
+      {loading ? (
+        <View style={{ alignItems: "center", paddingVertical: space[4] }}>
+          <ActivityIndicator size="small" color={c.foregroundMuted} />
+        </View>
+      ) : pending.length === 0 ? (
         <View style={{ alignItems: "center", gap: space[1], paddingVertical: space[4] }}>
           <Icon name="Scale" size={iconSize.lg} color={c.foregroundMuted} />
           <Text style={{ color: c.foreground, fontSize: font.base, fontWeight: weight.semibold }}>No pending decisions</Text>
