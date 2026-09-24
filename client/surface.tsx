@@ -23,13 +23,33 @@ interface Session {
   workspaceId: string;
   cwd: string;
   title: string;
+  /** the agent is mid-turn — the user is actively querying it right now */
+  running: boolean;
+  /** ms timestamp of the last activity, for "follow the most recently used session" */
+  activity: number;
 }
 
 // A real session has a workspaceId; our own headless judges ("jev judge") do not get one, and we
 // drop them by title as a belt-and-suspenders guard.
-function toSession(a: { id: string; workspaceId?: string | null; cwd?: string; title?: string | null; provider?: string }): Session | null {
+function toSession(a: {
+  id: string;
+  workspaceId?: string | null;
+  cwd?: string;
+  title?: string | null;
+  provider?: string;
+  status?: string;
+  lastUserMessageAt?: string | null;
+  updatedAt?: string;
+}): Session | null {
   if (!a.workspaceId || a.title === "jev judge") return null;
-  return { id: a.id, workspaceId: a.workspaceId, cwd: a.cwd || ".", title: a.title || a.provider || a.id.slice(0, 8) };
+  return {
+    id: a.id,
+    workspaceId: a.workspaceId,
+    cwd: a.cwd || ".",
+    title: a.title || a.provider || a.id.slice(0, 8),
+    running: a.status === "running",
+    activity: Date.parse(a.lastUserMessageAt || a.updatedAt || "") || 0,
+  };
 }
 
 /** Live top-level sessions, tracked over the same agents subscription the composer pill uses. */
@@ -87,19 +107,25 @@ function useJevSessions(): Session[] {
   return sessions;
 }
 
-/** The shared board: pick a session across the top, judge its tasks below, full width. */
+const AUTO = "__auto";
+
+/** The shared board: follow the active session (or pin one), judge its tasks below, full width. */
 function JevBoard({ theme, navigation }: { theme: PluginTheme; navigation?: Navigation }) {
   const c = theme.colors;
   const sessions = useJevSessions();
-  const [selectedId, setSelectedId] = useState("");
-  const selected = useMemo(
-    () => sessions.find((s) => s.id === selectedId) ?? sessions[0],
-    [sessions, selectedId],
-  );
-  useEffect(() => {
-    if (selected && selected.id !== selectedId) setSelectedId(selected.id);
-  }, [selected, selectedId]);
+  // null = auto-follow the session you're working in; a string pins to one you picked.
+  const [pinnedId, setPinnedId] = useState<string | null>(null);
 
+  // the session you're actively querying: prefer one that's mid-turn, else the most recently used.
+  const autoActive = useMemo(() => {
+    if (!sessions.length) return undefined;
+    const running = sessions.filter((s) => s.running);
+    const pool = running.length ? running : sessions;
+    return pool.reduce((best, s) => (s.activity > best.activity ? s : best));
+  }, [sessions]);
+
+  const following = pinnedId === null;
+  const selected = following ? autoActive : sessions.find((s) => s.id === pinnedId) ?? autoActive;
   const openAgent = navigation?.openAgent;
 
   return (
@@ -109,7 +135,7 @@ function JevBoard({ theme, navigation }: { theme: PluginTheme; navigation?: Navi
           <Icon name="Scale" size={iconSize.lg} color={c.foreground} />
           <Text style={{ color: c.foreground, fontSize: font.xl, fontWeight: weight.bold }}>Jev</Text>
           <Text style={{ color: c.foregroundMuted, fontSize: font.base, flex: 1 }} numberOfLines={1}>
-            {sessions.length <= 1 && selected ? selected.title : "judge-task queue"}
+            {selected ? `${selected.title}${following ? " · following" : ""}` : "judge-task queue"}
           </Text>
           {selected && openAgent ? (
             <Button theme={theme} variant="ghost" icon="SquareArrowOutUpRight" label="open session" onPress={() => openAgent({ agentId: selected.id })} />
@@ -119,9 +145,12 @@ function JevBoard({ theme, navigation }: { theme: PluginTheme; navigation?: Navi
           <Dropdown
             theme={theme}
             label="session"
-            items={sessions.map((s) => ({ key: s.id, label: s.title }))}
-            selectedKey={selected?.id ?? ""}
-            onSelect={setSelectedId}
+            items={[
+              { key: AUTO, label: "Auto · follow active", hint: autoActive?.title },
+              ...sessions.map((s) => ({ key: s.id, label: s.title, hint: s.running ? "running" : undefined })),
+            ]}
+            selectedKey={pinnedId ?? AUTO}
+            onSelect={(key) => setPinnedId(key === AUTO ? null : key)}
             placeholder="pick a session"
           />
         ) : null}

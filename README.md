@@ -120,7 +120,7 @@ paseo plugin install ./jev-paseo
 
 In a session, open the **Jev** pill next to the composer. Add a question with `＋ new`, or start from a preset (`verify`, `route`, `severity`, `guardrail`, and the rest of the common jev recipes). Resolve it by tapping an option, or pick a model under *decide with* and hit **ask**. "ask all" judges every pending task in one call. Each resolved decision becomes a card in the timeline, and the panel keeps a running log. A resolved row expands to that full card, and you can re-judge it with a different model from there. Pending rows carry edit and remove; toasts report each outcome. If you never set a judge model, the picker falls back to your provider's default so it works out of the box.
 
-Want more room? Open **Jev** from the sidebar. It opens as its own tab like a session, lists your live sessions across the top, and shows the full-size queue for whichever one you pick.
+Want more room? Open **Jev** from the sidebar. It opens as its own tab like a session, lists your live sessions across the top, and shows the full-size queue for whichever one you pick. By default it **follows the session you're working in**: when you send a query somewhere, that agent goes `running` and the tab switches to it (Paseo has no "focused tab" event for plugins, so it tracks the running / most-recently-used agent over the `agents.list` subscription). Pick a session from the dropdown to pin it, or choose *Auto · follow active* to hand it back.
 
 ### Letting the agent ask
 
