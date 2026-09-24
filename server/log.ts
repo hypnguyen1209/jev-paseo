@@ -3,7 +3,7 @@
 // shadow-judged AND later resolved by the user, we can compare model-vs-user = the regret signal.
 import { appendFileSync, mkdirSync, readFileSync, statSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { homedir } from "node:os";
+import { paseoHome } from "./paseo-home";
 
 export interface DecisionLog {
   taskId: string;
@@ -91,7 +91,7 @@ export function aggregate(records: DecisionLog[]): JevStats {
 }
 
 function file(): string {
-  return process.env.JEV_LOG_FILE || join(homedir(), ".paseo", "plugin-data", "jev-decisions.jsonl");
+  return process.env.JEV_LOG_FILE || join(paseoHome(), "plugin-data", "jev-decisions.jsonl");
 }
 
 // The parsed log, kept warm so stats don't re-parse the whole growing jsonl every call. Guarded by

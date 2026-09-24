@@ -52,6 +52,14 @@ describe("store CRUD (temp file)", () => {
     writeFileSync(process.env.JEV_TASKS_FILE!, "{ not json", "utf8");
     expect(readStore()).toEqual([]);
   });
+  it("drops a malformed task but keeps the valid ones", () => {
+    writeFileSync(
+      process.env.JEV_TASKS_FILE!,
+      JSON.stringify({ v: 1, tasks: [t("good"), { id: "bad", nope: true }] }),
+      "utf8",
+    );
+    expect(readStore().map((x) => x.id)).toEqual(["good"]);
+  });
   it("resolveTasks patches only pending tasks and returns the applied ids", () => {
     writeStore([
       { ...t("r1"), status: "pending" },

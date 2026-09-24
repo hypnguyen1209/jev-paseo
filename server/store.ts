@@ -2,12 +2,9 @@
 // a corrupt/missing file reads as empty rather than throwing. Override the path with JEV_TASKS_FILE.
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { homedir } from "node:os";
 import { randomUUID } from "node:crypto";
-import { z } from "zod";
 import { JevTaskSchema, type JevTask } from "../shared/task";
-
-const StoreSchema = z.object({ v: z.literal(1), tasks: z.array(JevTaskSchema) });
+import { paseoHome } from "./paseo-home";
 
 // ponytail: cap resolved history kept in the live store (pending is always kept). Full history for
 // stats lives in the append-only decision log, so the store only needs the recent resolved tail.
@@ -19,7 +16,7 @@ export function newId(): string {
 }
 
 function file(): string {
-  return process.env.JEV_TASKS_FILE || join(homedir(), ".paseo", "plugin-data", "jev-tasks.json");
+  return process.env.JEV_TASKS_FILE || join(paseoHome(), "plugin-data", "jev-tasks.json");
 }
 
 /** Keep every pending task and only the newest MAX_RESOLVED resolved ones, bounding file growth. */
@@ -38,8 +35,15 @@ function prune(tasks: JevTask[]): JevTask[] {
 
 export function readStore(): JevTask[] {
   try {
-    const parsed = StoreSchema.safeParse(JSON.parse(readFileSync(file(), "utf8")));
-    return parsed.success ? parsed.data.tasks : [];
+    const raw = JSON.parse(readFileSync(file(), "utf8")) as { tasks?: unknown };
+    if (!raw || !Array.isArray(raw.tasks)) return [];
+    // Parse per task, dropping only the bad ones — one malformed entry must not void the whole store.
+    const out: JevTask[] = [];
+    for (const t of raw.tasks) {
+      const parsed = JevTaskSchema.safeParse(t);
+      if (parsed.success) out.push(parsed.data);
+    }
+    return out;
   } catch {
     return [];
   }
