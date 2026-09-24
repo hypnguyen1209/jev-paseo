@@ -157,6 +157,8 @@ Tasks persist to `~/.paseo/plugin-data/jev-tasks.json`, and every decision (your
 
 It is not a System One model. The distributions are only as calibrated as the model you point at them and the number of samples you pay for, so treat the confidence as a rough signal and keep your own judgment on top. Decision cards are timeline rows the daemon appends, so they survive a reconnect but not a daemon restart. The task store and the model's transcript do persist. And it gates nothing: a jev verdict advises, and you decide what to do with it.
 
+It also can't reach you when the app is backgrounded or on your phone. Paseo exposes no OS or push notification API to plugins (only the pill badge and an in-app toast), so a pending decision waits for you to look. The one native signal is the "agent finished" notification when the agent that asked ends its turn. There's a write-up of what a plugin notification API could look like in [docs/paseo-plugin-notifications-request.md](docs/paseo-plugin-notifications-request.md).
+
 ## Working on it
 
 ```bash

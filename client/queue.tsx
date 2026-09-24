@@ -1,7 +1,7 @@
 // v0.2.0: the judge-task queue — shared by the workspace panel and the composer-pill popover.
 // Shows every pending decision; each row can be resolved by the USER (tap an option) or by a
 // MODEL (tap "Ask model"). Resolving emits the decision card into the session timeline.
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Pressable, ScrollView, Text, View } from "react-native";
 import { useSettings } from "@getpaseo/plugin/client";
 import { Icon, useToast } from "@getpaseo/plugin/client/react-native";
@@ -187,6 +187,21 @@ export function JevQueueScreen({
     },
     [agentId],
   );
+
+  // In-app nudge: toast when the agent pushes a new [jev] task that needs your call. Marker-only, so
+  // it never fires for tasks you added yourself. (Paseo exposes no plugin OS/push API — see the
+  // feature request in docs/; this is the in-app ceiling, visible only while Jev is open.)
+  const seenMarkers = useRef<Set<string> | null>(null);
+  useEffect(() => {
+    const markerIds = new Set(pending.filter((t) => t.source === "marker").map((t) => t.id));
+    if (seenMarkers.current === null) {
+      seenMarkers.current = markerIds; // seed on first load; don't toast the backlog
+      return;
+    }
+    const fresh = [...markerIds].filter((id) => !seenMarkers.current!.has(id)).length;
+    seenMarkers.current = markerIds;
+    if (fresh > 0) toast.show(`${fresh} judge task${fresh > 1 ? "s" : ""} from the agent need your call`, { variant: "info" });
+  }, [pending, toast]);
 
   useEffect(() => {
     // seed only when this agent has no remembered pick yet
