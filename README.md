@@ -132,7 +132,7 @@ An agent can queue its own decisions by writing a marker line in its output:
 [jev] score: Rate this diff's risk | trivial | low | medium | high | severe
 ```
 
-Paseo won't let a plugin expose a tool to the agent or intercept a tool call before it runs. The marker is the seam that's left. An `agent.turn_ended` observer picks it up and turns it into a pending task, de-duped so asking twice doesn't queue twice. Teaching the agent to write markers is opt-in: flip `JEV_HOOK_INSTRUCT=1`, or say so in your project's `AGENTS.md` or `CLAUDE.md`.
+Paseo won't let a plugin expose a tool to the agent or intercept a tool call before it runs. The marker is the seam that's left. An `agent.turn_ended` observer picks it up and turns it into a pending task, de-duped so asking twice doesn't queue twice. The hook parses markers the same way for every provider, so `claude`, `codex`, and `pi` all use it identically. Teaching the agent to write them is opt-in: flip `JEV_HOOK_INSTRUCT=1` to inject the convention into every agent, or drop it into the file each harness reads (Claude Code skill or `CLAUDE.md`, Codex `AGENTS.md`, Pi `APPEND_SYSTEM.md`). Ready-to-use copies are in [`integrations/`](integrations/).
 
 Set `JEV_FEEDBACK=1` to close the loop: when a marker task resolves (a model judged it or you picked), jev sends the decision back into that session with `agents.send`, so the coding agent reads the verdict and keeps going. It fires only for marker tasks, and a send failure never touches the resolution.
 
