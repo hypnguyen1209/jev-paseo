@@ -1,7 +1,8 @@
 // v0.7.0: defaults for the LLM judge. No hosted-model dependency; `samples` controls jev-style
 // self-consistency (1 = one self-reported distribution; ≥3 = K votes tallied → calibrated).
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo } from "react";
 import { Text } from "react-native";
+import { useQuery } from "@tanstack/react-query";
 import { useRpc, useSettings, type PluginSurfaceProps } from "@getpaseo/plugin/client";
 import { SettingsAction, SettingsCard, SettingsSection, SettingsSelect, SettingsSwitch } from "@getpaseo/plugin/client/ui";
 import { jevSettings } from "../shared/settings";
@@ -33,21 +34,16 @@ const SAMPLES = [
 export function JevSettings({ theme }: PluginSurfaceProps) {
   const settings = useSettings(jevSettings);
   const listModels = useRpc(JevModelsRpc);
-  const [models, setModels] = useState<{ label: string; value: string }[]>([{ label: "(none)", value: "" }]);
+  const modelsQuery = useQuery({
+    queryKey: ["jev", "models", ""] as const, // shares the cache with useJevModels()
+    queryFn: () => listModels({}),
+    staleTime: 5 * 60_000,
+  });
+  const models = useMemo(
+    () => [{ label: "(none)", value: "" }, ...(modelsQuery.data?.models ?? []).map((m) => ({ label: m.id, value: m.id }))],
+    [modelsQuery.data],
+  );
   const style = useMemo(() => ({ color: theme.colors.foreground }), [theme]);
-
-  useEffect(() => {
-    let live = true;
-    void listModels({})
-      .then((r) => {
-        if (!live) return;
-        setModels([{ label: "(none)", value: "" }, ...r.models.map((m) => ({ label: m.id, value: m.id }))]);
-      })
-      .catch(() => undefined);
-    return () => {
-      live = false;
-    };
-  }, [listModels]);
 
   const save = useCallback(
     (patch: Record<string, unknown>) => {
