@@ -1,55 +1,69 @@
-# Feature request: a plugin-facing notification API
+# Issue: expose a notification API to plugins (OS + push), not just in-app toast
 
-## The gap
+> Copy the line below as the issue title, and everything under "Body" as the issue body.
 
-A Paseo plugin has no way to reach the user when the app is backgrounded or on their phone. The plugin surface offers exactly two notification channels, both in-app and both only visible while the app is open and focused:
+**Title:** `Plugins can't notify the user (OS / push) — expose a plugin notification or attention API`
 
-- the composer-pill **badge** (`addComposerPill`, a passive count), and
-- **`useToast`** from `@getpaseo/plugin/client/react-native` (a transient in-app toast).
+---
 
-The server context (`registerSettings`, `handle`, `registerProvider`, `on`, `before`) has nothing at all. There is no method to raise an OS notification, send a phone push, or mark anything as needing attention.
+## Body
 
-Paseo already has the whole pipeline: `sendOsNotification`, `@getpaseo/protocol/agent-attention-notification`, and the `push-notifications` module with registered device tokens. But it fires only from **native agent attention** (`attentionReason: needs_input | permission | finished`), which is an agent-and-app concept a plugin can't produce.
+### Summary
 
-## Why it matters
+A plugin has no way to reach the user when the app is backgrounded or on their phone. The only notification channels on the plugin surface are in-app and only work while the app is open and focused: the composer-pill **badge** (`addComposerPill`) and **`useToast`** (`@getpaseo/plugin/client/react-native`). The server context (`registerSettings`, `handle`, `registerProvider`, `on`, `before`) has nothing.
 
-jev-paseo queues typed decisions an agent asks for by emitting a `[jev]` marker. When one needs the user's call and the user is in another session, on another tab, or away from the desk, there is no way to tell them. Today they only find out by looking at the Jev tab or the pill badge. The one native signal they do get is the generic "agent finished" attention notification when the agent that emitted the marker ends its turn, which says nothing about the pending decision and never fires for a task added in the Jev UI or one left pending by shadow mode.
+Paseo already ships the pipeline for this (`sendOsNotification`, `@getpaseo/protocol/agent-attention-notification`, the `push-notifications` module with registered device tokens), but it fires only from native **agent attention** (`attentionReason: needs_input | permission | finished`), which a plugin can't produce.
 
-This is not specific to jev. Any plugin that produces work the user must act on (a review to approve, a long job that finished, a threshold that tripped) hits the same wall.
+### Steps to reproduce
 
-## Proposal
+1. Install a directory plugin that queues work the user must act on. Example: [jev-paseo](https://github.com/hypnguyen1209/jev-paseo) queues a typed decision when an agent emits a `[jev]` marker.
+2. From a plugin server handler or an `agent.turn_ended` hook, try to notify the user that an item needs their input.
+3. Inspect the API surface. Server: `registerSettings` / `handle` / `registerProvider` / `on` / `before`. Client: `addComposerPill` (a passive badge) and `useToast` (in-app). There is no `notify`, no push, no way to set attention.
+4. Background the app, or move to the phone. The pending item produces no OS notification and no push.
 
-Give plugins a notification entry point that reuses the existing OS/push pipeline and honors the same rules native attention already follows (respect the user's notification preferences, and stay quiet when the relevant surface is focused).
+### Expected behavior
 
-Two shapes, either works:
+A plugin can raise an OS/system notification and a phone push for user-actionable work, going through the same pipeline and rules that native agent attention already uses (respect the user's notification preferences, and stay quiet when the relevant surface is focused).
 
-**A. A direct notify call** on the server handler context (and/or the client context):
+### Actual behavior
+
+No plugin-facing notification or attention API. The only signals are the in-app badge and toast, visible only while the app is open and focused. For the agent-marker case the user gets the generic "agent finished" attention notification when the emitting agent ends its turn, which says nothing about the pending item and never fires for a task added in the plugin's own UI or left pending by shadow mode.
+
+### Proposed API
+
+Either shape works; B is likely the smaller change since the attention payload already drives notifications.
+
+**A. A direct notify call** on the server handler context (and/or client context):
 
 ```ts
 context.notify({
   title: "Jev needs your call",
   body: "Which fix is safer? rollback / hotfix",
-  agentId,          // optional: focus-suppress and deep-link to this session
-  tag: task.id,     // dedupe / replace an earlier notification for the same thing
+  agentId,        // optional: focus-suppress and deep-link to this session
+  tag: task.id,   // dedupe / replace an earlier notification for the same thing
   priority: "normal",
 });
 ```
 
-**B. Or let a plugin raise attention on an agent it is associated with**, reusing the exact native path (OS notification, push, badge, favicon, list highlight):
+**B. Let a plugin raise attention on an associated agent**, reusing the exact native path (OS notification, push, badge, favicon, list highlight):
 
 ```ts
 agents.ref(agentId).requestAttention({ reason: "needs_input", title, body });
 ```
 
-Shape B is the smaller change if the attention payload is already the notification source of truth, and it gives the plugin the in-app affordances for free.
+### Guardrails expected
 
-## Guardrails we would expect
+- [ ] Opt-in per plugin, gated by the user's existing notification settings.
+- [ ] Focus suppression: no notification when the target surface is already in front, as agent attention behaves.
+- [ ] Rate limit and `tag`-based dedupe so a chatty plugin can't spam the phone.
+- [ ] No new push-permission surface beyond what the host already requests.
 
-- Opt-in per plugin, gated by the user's existing notification settings.
-- Focus suppression: no notification when the target surface is already in front, exactly as agent attention behaves.
-- Rate limit and `tag`-based dedupe so a chatty plugin can't spam the phone.
-- No new permission surface on the plugin side beyond what the host already asks for push.
+### Alternatives / current workaround
 
-## Until then
+Until this exists a plugin can only do the in-app badge, an in-app toast when new work arrives (visible only while the plugin UI is open), and lean on the native "agent finished" notification for the agent-marker case. None of that reaches a backgrounded app or a phone.
 
-jev-paseo does what a plugin can: the pill badge, an in-app toast when a new marker task arrives (visible only while Jev is open), and it lets the native "agent finished" notification stand in for the agent-marker case. None of that reaches a backgrounded app or a phone.
+### Environment
+
+- Paseo app/daemon: 0.9.1
+- Plugin SDK (`@getpaseo/plugin`): 0.9.0-beta.2
+- Repro plugin: jev-paseo (directory install)
