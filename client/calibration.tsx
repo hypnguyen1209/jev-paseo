@@ -30,7 +30,7 @@ function StatBar({
   const c = theme.colors;
   const w = Math.round(Math.min(1, Math.max(0, frac)) * 100);
   return (
-    <View style={{ gap: 2 }}>
+    <View style={{ gap: 2 }} accessible accessibilityLabel={right ? `${label}: ${right}` : `${label}: ${w}%`}>
       <View style={{ flexDirection: "row", gap: space[2] }}>
         <Text style={{ color: c.foregroundMuted, fontSize: font.sm, flex: 1 }} numberOfLines={1}>
           {label}
