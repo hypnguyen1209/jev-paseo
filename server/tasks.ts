@@ -109,6 +109,7 @@ export function addTaskHandler() {
       cwd: input.cwd,
       type: input.type,
       instructions: input.instructions.trim(),
+      description: input.description?.trim() || undefined,
       options: input.options,
       state: input.state?.trim() || undefined,
       model: input.model?.trim() || undefined,
@@ -130,6 +131,7 @@ export function updateTaskHandler() {
     const patch: Partial<JevTask> = {
       type: input.type,
       instructions: input.instructions.trim(),
+      description: input.description?.trim() || undefined,
       options: input.options,
       state: input.state?.trim() || undefined,
       model: input.model?.trim() || undefined,
@@ -155,7 +157,9 @@ export async function judgeTask(
   if (!question) return { ok: false, note: "choice/score need at least 2 options." };
 
   const strict = task.strict ?? defaults.strict;
-  const state = (task.state ?? "").trim() || (await recentState(context, task.agentId));
+  const evidence = (task.state ?? "").trim() || (await recentState(context, task.agentId));
+  const desc = task.description?.trim();
+  const state = desc ? `Context: ${desc}\n\n${evidence}` : evidence; // fold the description into the judge's evidence
   const backend = makeLlmBackend(model, makeAsk(context, task.cwd, model, task.agentId), defaults.samples);
   const result = await runJudge({
     question,

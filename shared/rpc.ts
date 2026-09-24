@@ -38,6 +38,7 @@ export const JevAddTaskRpc = defineRpc({
     cwd: z.string(),
     type: z.enum(["noul", "choice", "score"]),
     instructions: z.string(),
+    description: z.string().optional(),
     options: z.array(z.string()).default([]),
     state: z.string().optional(),
     model: z.string().optional(),
@@ -46,13 +47,14 @@ export const JevAddTaskRpc = defineRpc({
   output: okTask,
 });
 
-/** Edit a still-pending task in place (question, options, model, strict, evidence). */
+/** Edit a still-pending task in place (question, description, options, model, strict, evidence). */
 export const JevUpdateTaskRpc = defineRpc({
   name: "jev.update-task",
   input: z.object({
     id: z.string(),
     type: z.enum(["noul", "choice", "score"]),
     instructions: z.string(),
+    description: z.string().optional(),
     options: z.array(z.string()).default([]),
     state: z.string().optional(),
     model: z.string().optional(),

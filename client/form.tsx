@@ -15,6 +15,7 @@ type DecisionType = "choice" | "score" | "noul";
 export interface JevFormInitial {
   type: DecisionType;
   instructions: string;
+  description?: string;
   options: string[];
   model?: string;
   strict?: boolean;
@@ -48,6 +49,7 @@ export function JevForm({
   const [type, setType] = useState<DecisionType>(initial?.type ?? "choice");
   const [strict, setStrict] = useState(initial?.strict ?? true);
   const [instructions, setInstructions] = useState(initial?.instructions ?? "");
+  const [description, setDescription] = useState(initial?.description ?? "");
   const [optionsText, setOptionsText] = useState(initial?.options.join("\n") ?? "");
   const [stateText, setStateText] = useState(initial?.state ?? "");
   const [busy, setBusy] = useState(false);
@@ -76,6 +78,7 @@ export function JevForm({
       const res = await submit({
         type,
         instructions: instructions.trim(),
+        description: description.trim() || undefined,
         options,
         model: model || undefined,
         strict,
@@ -84,6 +87,7 @@ export function JevForm({
       if (res.ok) {
         if (!editing) {
           setInstructions("");
+          setDescription("");
           setOptionsText("");
           setStateText("");
         }
@@ -94,7 +98,7 @@ export function JevForm({
     } finally {
       setBusy(false);
     }
-  }, [canAdd, submit, type, instructions, options, model, strict, stateText, editing, onDone]);
+  }, [canAdd, submit, type, instructions, description, options, model, strict, stateText, editing, onDone]);
 
   const pad = compact ? space[2] : space[3];
   const s = useMemo(
@@ -158,6 +162,15 @@ export function JevForm({
         placeholderTextColor={c.foregroundMuted}
         value={instructions}
         onChangeText={setInstructions}
+        multiline
+      />
+
+      <TextInput
+        style={[s.input, { minHeight: 40 }]}
+        placeholder="Description (optional) — context for you and the judge"
+        placeholderTextColor={c.foregroundMuted}
+        value={description}
+        onChangeText={setDescription}
         multiline
       />
 

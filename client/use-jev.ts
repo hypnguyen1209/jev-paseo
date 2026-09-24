@@ -65,6 +65,7 @@ export function useJevModels(cwd?: string): { models: JevModel[]; note: string |
 export interface AddTaskInput {
   type: "noul" | "choice" | "score";
   instructions: string;
+  description?: string;
   options: string[];
   state?: string;
   model?: string;

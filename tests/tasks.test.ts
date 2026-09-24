@@ -273,6 +273,31 @@ describe("judgeTaskHandler", () => {
   });
 });
 
+describe("task description", () => {
+  it("round-trips and folds into the judge's evidence", async () => {
+    addTask(mk("DSC", "desc", { description: "This gates a prod deploy.", state: "run log attached" }));
+    let capturedPrompt = "";
+    const ctx = {
+      paseo: {
+        agents: {
+          ref: () => ({ timeline: { append: async () => {}, refetch: async () => ({ entries: [] }) } }),
+          create: async (opts: { prompt?: string }) => {
+            capturedPrompt = opts.prompt ?? "";
+            return {
+              waitForFinish: async () => ({ status: "idle", lastMessage: '{"answers":{"main":{"probabilities":{"no":0.1,"yes":0.9}}}}', final: null, error: null }),
+              archive: async () => {},
+            };
+          },
+        },
+      },
+    } as unknown as PluginHandlerContext;
+    await judgeTaskHandler()({ id: "DSC", config: cfg() }, ctx);
+    expect(getTask("DSC")?.description).toBe("This gates a prod deploy.");
+    expect(capturedPrompt).toContain("Context: This gates a prod deploy.");
+    expect(capturedPrompt).toContain("run log attached");
+  });
+});
+
 describe("judgeAllHandler (fan-out)", () => {
   it("resolves ALL pending in ONE backend call", async () => {
     for (const id of ["B1", "B2", "B3"]) addTask(mk(id, "batch"));

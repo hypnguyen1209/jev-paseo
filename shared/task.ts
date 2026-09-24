@@ -10,6 +10,8 @@ export const JevTaskSchema = z.object({
   cwd: z.string(),
   type: z.enum(["noul", "choice", "score"]),
   instructions: z.string(),
+  /** optional longer description / context, shown to the human and fed to the judge. */
+  description: z.string().optional(),
   options: z.array(z.string()).default([]),
   state: z.string().optional(),
   /** preferred provider/model for this task; overridable when judging. */

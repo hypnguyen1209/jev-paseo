@@ -83,6 +83,10 @@ function TaskRow({
         </Pressable>
       </View>
 
+      {task.description ? (
+        <Text style={{ color: c.foregroundMuted, fontSize: font.sm }}>{task.description}</Text>
+      ) : null}
+
       <Text style={{ color: c.foregroundMuted, fontSize: font.sm, textTransform: "uppercase" }}>you decide</Text>
       <View style={{ flexDirection: "row", flexWrap: "wrap", gap: space[1.5] }}>
         {opts.map((o) => (
@@ -300,6 +304,7 @@ export function JevQueueScreen({
               ? {
                   type: editingTask.type,
                   instructions: editingTask.instructions,
+                  description: editingTask.description,
                   options: editingTask.options,
                   model: editingTask.model,
                   strict: editingTask.strict,
