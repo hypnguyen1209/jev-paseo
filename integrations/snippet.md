@@ -1,9 +1,3 @@
-# APPEND_SYSTEM.md (Pi)
-
-Pi automatically discovers `APPEND_SYSTEM.md` in the agent's working directory and appends it to the system prompt (Paseo composes with this rather than replacing it). Drop this file at your project root, or merge the section below into an existing `APPEND_SYSTEM.md`.
-
----
-
 ## jev decisions
 
 This project runs on Paseo with the **jev** plugin. To hand off a small, high-stakes decision instead of guessing, write ONE marker on its own line, at the start of the line:
