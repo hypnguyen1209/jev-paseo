@@ -7,6 +7,8 @@ export const JEV_DECISION_VERSION = 1;
 
 export const DecisionCardSchema = z.object({
   instructions: z.string(),
+  /** optional longer context carried from the task. */
+  description: z.string().optional(),
   type: z.enum(["noul", "choice", "score"]),
   model: z.string(),
   strict: z.boolean(),

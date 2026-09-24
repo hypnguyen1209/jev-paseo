@@ -95,6 +95,8 @@ export function DecisionCardView({ theme, card }: { theme: PluginTheme; card: De
         ) : null}
       </View>
 
+      {d.description ? <Text style={{ color: c.foregroundMuted, fontSize: font.sm }}>{d.description}</Text> : null}
+
       {d.verdict !== "error" ? <Text style={s.answer}>{d.answerLabel}</Text> : null}
 
       {d.options.map((o) => (

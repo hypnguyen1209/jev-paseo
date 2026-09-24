@@ -291,10 +291,12 @@ describe("task description", () => {
         },
       },
     } as unknown as PluginHandlerContext;
-    await judgeTaskHandler()({ id: "DSC", config: cfg() }, ctx);
+    const res = await judgeTaskHandler()({ id: "DSC", config: cfg() }, ctx);
     expect(getTask("DSC")?.description).toBe("This gates a prod deploy.");
     expect(capturedPrompt).toContain("Context: This gates a prod deploy.");
     expect(capturedPrompt).toContain("run log attached");
+    // the description rides onto the decision card too
+    expect(res.ok && res.task.result?.description).toBe("This gates a prod deploy.");
   });
 });
 

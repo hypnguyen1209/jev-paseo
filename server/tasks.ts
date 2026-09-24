@@ -172,7 +172,7 @@ export async function judgeTask(
     backend,
   });
   const shadow = defaults.shadow;
-  const card: DecisionCard = { ...toCard(result), shadow: shadow || undefined };
+  const card: DecisionCard = { ...toCard(result), description: task.description, shadow: shadow || undefined };
   if (shadow) {
     // shadow: judge + log + card, but leave the task pending on purpose
     logModel(task, result, model, true);
@@ -270,7 +270,7 @@ export function judgeAllHandler() {
           task,
           result,
           model: effModel(task),
-          card: { ...toCard(result), shadow: shadow || undefined } as DecisionCard,
+          card: { ...toCard(result), description: task.description, shadow: shadow || undefined } as DecisionCard,
         }));
 
       if (shadow) {
@@ -314,7 +314,7 @@ export function resolveTaskHandler() {
       if (!taskOptions(task).some((o) => o.key === input.choiceKey)) {
         return { ok: false, note: `unknown option "${input.choiceKey}" for this task.` };
       }
-      const card = userCard(task.type, task.instructions, task.options, input.choiceKey);
+      const card: DecisionCard = { ...userCard(task.type, task.instructions, task.options, input.choiceKey), description: task.description };
       const updated = updateTask(task.id, { status: "resolved", decidedBy: "user", result: card });
       appendLog({
         taskId: task.id,
