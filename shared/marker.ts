@@ -1,6 +1,6 @@
 // v0.6.0: parse a jev "marker" an agent emits to push a decision to the plugin.
 // Grammar:  [jev] <choice|score|yn> [strict][:] <question> [| option | option ...]
-export interface JevMarker {
+interface JevMarker {
   type: "noul" | "choice" | "score";
   instructions: string;
   options: string[];

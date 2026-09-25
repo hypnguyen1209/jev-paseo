@@ -1,6 +1,6 @@
 // v0.3.0: the judge. Model-agnostic via an injected JudgeBackend. `runJudge` = single task,
-// multi-round STRICT (only when the backend supports re-asking). `runBatchJudge` = fan-out: many
-// tasks over one shared state in ONE backend call (the jev efficiency lever). Pure/testable.
+// multi-round STRICT. `runBatchJudge` = fan-out: many tasks over one shared state in ONE backend
+// call (the jev efficiency lever). Pure/testable.
 import {
   assemble,
   bandOf,
@@ -14,15 +14,6 @@ import {
 } from "../shared/contract";
 import type { JudgeBackend } from "./backend";
 
-export interface JudgeRound {
-  probabilities: Record<string, number>;
-  confidence: number;
-  band: Band;
-  reasoning: string;
-  considerations?: Consideration[];
-  sufficient: boolean;
-}
-
 export interface JudgeResult {
   model: string;
   type: Question["type"];
@@ -30,7 +21,6 @@ export interface JudgeResult {
   options: Option[];
   strict: boolean;
   threshold: number;
-  reviewFloor: number;
   maxRounds: number;
   rounds: number;
   failStreak: number;
@@ -40,7 +30,6 @@ export interface JudgeResult {
   band: Band;
   reasoning: string;
   considerations?: Consideration[];
-  history: JudgeRound[];
 }
 
 const clamp01 = (n: number): number => (Number.isFinite(n) ? Math.min(1, Math.max(0, n)) : 0);
@@ -62,7 +51,6 @@ function resultOf(args: {
   failStreak: number;
   reasoning: string;
   considerations?: Consideration[];
-  history: JudgeRound[];
   sufficient: boolean;
 }): JudgeResult {
   const band = bandOf(args.decision.confidence, args.threshold, args.reviewFloor);
@@ -74,7 +62,6 @@ function resultOf(args: {
     options: optionsOf(args.question),
     strict: args.strict,
     threshold: args.threshold,
-    reviewFloor: args.reviewFloor,
     maxRounds: args.maxRounds,
     rounds: args.rounds,
     failStreak: args.failStreak,
@@ -84,11 +71,10 @@ function resultOf(args: {
     band,
     reasoning: args.reasoning,
     considerations: args.considerations,
-    history: args.history,
   };
 }
 
-export interface JudgeInput {
+interface JudgeInput {
   question: Question;
   state: unknown;
   model: string;
@@ -102,11 +88,11 @@ export interface JudgeInput {
 export async function runJudge(input: JudgeInput): Promise<JudgeResult> {
   const { question, state, model, strict, threshold, reviewFloor, backend } = input;
   const keys = optionsOf(question).map((o) => o.key);
-  const maxRounds =
-    strict && backend.multiRound ? Math.min(5, Math.max(1, Math.floor(input.maxRounds || 1))) : 1;
+  const maxRounds = strict ? Math.min(5, Math.max(1, Math.floor(input.maxRounds || 1))) : 1;
 
-  const history: JudgeRound[] = [];
+  let rounds = 0;
   let failStreak = 0;
+  let sufficient = false;
   let feedback: string | undefined;
   let decision = assemble(question, normalizeDistribution({}, keys));
   let reasoning = "";
@@ -119,24 +105,15 @@ export async function runJudge(input: JudgeInput): Promise<JudgeResult> {
     decision = assemble(question, normalizeDistribution(raw.probabilities, keys));
     reasoning = raw.reasoning ?? "";
     considerations = raw.considerations;
-    const confidence = decision.confidence;
-    const sufficient = !strict || confidence >= threshold;
-    history.push({
-      probabilities: decision.probabilities,
-      confidence,
-      band: bandOf(confidence, threshold, reviewFloor),
-      reasoning,
-      considerations,
-      sufficient,
-    });
+    rounds = round;
+    sufficient = !strict || decision.confidence >= threshold;
     if (sufficient) break;
     failStreak++;
-    feedback = `Round ${round} was ${pct(confidence)} confident (< ${pct(
+    feedback = `Round ${round} was ${pct(decision.confidence)} confident (< ${pct(
       threshold,
     )}). Re-examine ONLY the STATE; keep confidence low unless the evidence genuinely supports one option.`;
   }
 
-  const last = history[history.length - 1];
   return resultOf({
     question,
     decision,
@@ -145,12 +122,11 @@ export async function runJudge(input: JudgeInput): Promise<JudgeResult> {
     threshold,
     reviewFloor,
     maxRounds,
-    rounds: history.length,
+    rounds,
     failStreak,
     reasoning,
     considerations,
-    history,
-    sufficient: last.sufficient,
+    sufficient,
   });
 }
 
@@ -159,7 +135,7 @@ export interface BatchTask {
   question: Question;
 }
 
-export interface BatchInput {
+interface BatchInput {
   tasks: BatchTask[];
   state: unknown;
   model: string;
@@ -187,14 +163,6 @@ export async function runBatchJudge(input: BatchInput): Promise<Record<string, J
     const raw = answers[t.id] ?? { probabilities: {} };
     const decision = assemble(t.question, normalizeDistribution(raw.probabilities, keys));
     const sufficient = !strict || decision.confidence >= threshold;
-    const round: JudgeRound = {
-      probabilities: decision.probabilities,
-      confidence: decision.confidence,
-      band: bandOf(decision.confidence, threshold, reviewFloor),
-      reasoning: raw.reasoning ?? "",
-      considerations: raw.considerations,
-      sufficient,
-    };
     out[t.id] = resultOf({
       question: t.question,
       decision,
@@ -207,7 +175,6 @@ export async function runBatchJudge(input: BatchInput): Promise<Record<string, J
       failStreak: sufficient ? 0 : 1,
       reasoning: raw.reasoning ?? "",
       considerations: raw.considerations,
-      history: [round],
       sufficient,
     });
   }

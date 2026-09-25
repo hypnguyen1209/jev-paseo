@@ -8,8 +8,6 @@ const base = { state: "s", model: "prov/x", strict: false, threshold: 0.9, revie
 /** Backend that answers every question with a fixed distribution (+ optional considerations). */
 function fixed(probs: Record<string, number>, considerations?: { q: string; a: string }[]): JudgeBackend {
   return {
-    label: "fixed",
-    multiRound: false,
     async evaluate(_s, questions) {
       const out: Record<string, RawAnswer> = {};
       for (const id of Object.keys(questions)) out[id] = { probabilities: probs, reasoning: "because", considerations };

@@ -1,10 +1,10 @@
 // v0.2.0: durable judge-task store. Atomic write (temp + rename) per repo convention. Best-effort:
 // a corrupt/missing file reads as empty rather than throwing. Override the path with JEV_TASKS_FILE.
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { dirname } from "node:path";
 import { randomUUID } from "node:crypto";
 import { JevTaskSchema, type JevTask } from "../shared/task";
-import { paseoHome } from "./paseo-home";
+import { pluginData } from "./paseo-home";
 
 // ponytail: cap resolved history kept in the live store (pending is always kept). Full history for
 // stats lives in the append-only decision log, so the store only needs the recent resolved tail.
@@ -16,7 +16,7 @@ export function newId(): string {
 }
 
 function file(): string {
-  return process.env.JEV_TASKS_FILE || join(paseoHome(), "plugin-data", "jev-tasks.json");
+  return process.env.JEV_TASKS_FILE || pluginData("jev-tasks.json");
 }
 
 /** Keep every pending task and only the newest MAX_RESOLVED resolved ones, bounding file growth. */

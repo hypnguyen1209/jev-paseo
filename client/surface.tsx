@@ -167,7 +167,7 @@ function JevBoard({ theme, navigation }: { theme: PluginTheme; navigation?: Navi
           />
         </View>
       ) : (
-        <View style={{ flex: 1, alignItems: "center", justifyContent: "center", padding: 24 }}>
+        <View style={{ flex: 1, alignItems: "center", justifyContent: "center", padding: space[6] }}>
           <Text style={{ color: c.foregroundMuted, textAlign: "center", maxWidth: 360 }}>
             No active session yet. Start an agent, then reopen Jev to queue and judge decisions here.
           </Text>

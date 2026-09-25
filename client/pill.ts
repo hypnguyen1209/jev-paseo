@@ -1,5 +1,5 @@
 // v0.2.0: a composer pill per agent, opening the judge-task queue popover. The label shows the
-// pending count, refreshed on register + every 8s. Mirrors the SDK's agent-observation pattern.
+// pending count, refreshed on register + every 30s. Mirrors the SDK's agent-observation pattern.
 import type { PluginButtonRegistration, PluginClientContext } from "@getpaseo/plugin/client";
 import { JevListTasksRpc } from "../shared/rpc";
 import { JevQueuePopover } from "./popover";
@@ -46,7 +46,7 @@ export function startJevPills(client: PluginClientContext): () => void {
     });
     const refresh = () => {
       void client
-        .rpc(JevListTasksRpc, { workspaceId, agentId: agent.id, status: "pending" })
+        .rpc(JevListTasksRpc, { agentId: agent.id, status: "pending" })
         .then((r) => {
           if (!stopped) reg.update({ label: r.tasks.length ? `Jev · ${r.tasks.length}` : "Jev" });
         })

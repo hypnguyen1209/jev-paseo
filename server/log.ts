@@ -2,38 +2,27 @@
 // regret" pattern). Every resolution — model or user, shadow or live — is logged. When a task was
 // shadow-judged AND later resolved by the user, we can compare model-vs-user = the regret signal.
 import { appendFileSync, mkdirSync, readFileSync, statSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { paseoHome } from "./paseo-home";
+import { dirname } from "node:path";
+import type { DecisionLogRecord } from "../shared/rpc";
+import { pluginData } from "./paseo-home";
 
-export interface DecisionLog {
-  taskId: string;
-  agentId: string;
-  type: "noul" | "choice" | "score";
-  instructions: string;
-  model: string;
-  decidedBy: "user" | "model";
-  verdict: string;
-  band?: "high" | "medium" | "low";
-  confidence: number;
-  chosen: string;
-  shadow: boolean;
-  createdAt: string;
-}
+/** One decision record. The shared RPC schema is the single source of truth for the shape. */
+export type DecisionLog = DecisionLogRecord;
 
-export interface RecentDecision {
+interface RecentDecision {
   band: "high" | "medium" | "low" | null;
   confidence: number;
   decidedBy: "user" | "model";
 }
 
-export interface JevStats {
+interface JevStats {
   total: number;
   byModel: number;
   byUser: number;
   /** mean confidence over MODEL decisions (user picks are always 1). */
   meanConfidence: number;
   bands: { high: number; medium: number; low: number };
-  /** tasks that got both a model (shadow) judgment and a user resolution. */
+  /** tasks with both a model record and a user record (shadow-judge, or a re-judge after your pick). */
   compared: number;
   agreements: number;
   agreementRate: number | null;
@@ -91,7 +80,7 @@ export function aggregate(records: DecisionLog[]): JevStats {
 }
 
 function file(): string {
-  return process.env.JEV_LOG_FILE || join(paseoHome(), "plugin-data", "jev-decisions.jsonl");
+  return process.env.JEV_LOG_FILE || pluginData("jev-decisions.jsonl");
 }
 
 // The parsed log, kept warm so stats don't re-parse the whole growing jsonl every call. Guarded by

@@ -19,37 +19,22 @@ export default function contribute(client: PluginClientContext) {
     Component: JevWorkspacePanel,
   });
 
-  // Also expose a full-screen surface + sidebar entry + a global command for it.
-  const canSurface = typeof client.addSurface === "function";
-  const keywords = ["jev", "decision", "judge", "task", "choice", "score", "verdict", "full", "screen"];
-  if (canSurface) {
-    client.addSurface("jev", JevSurface);
-    // The left-sidebar row can be hidden when the sidebar is collapsed, so the command is global —
-    // Ctrl/Cmd+K → "Jev" opens the full-screen tab from anywhere.
-    if (typeof client.addSidebarItem === "function")
-      client.addSidebarItem({ id: "jev", title: "Jev", icon: "Scale", surface: "jev" });
-    client.addCommandCenterItem({
-      id: "jev-open",
-      title: "Jev: open full screen",
-      icon: "Scale",
-      keywords,
-      context: "global",
-      onSelect(ctx) {
-        ctx.openSurface("jev");
-      },
-    });
-  } else {
-    client.addCommandCenterItem({
-      id: "jev-open",
-      title: "Jev: judge-task queue",
-      icon: "Scale",
-      keywords,
-      context: "agent",
-      onSelect(ctx) {
-        ctx.openPanel("jev");
-      },
-    });
-  }
+  // Also expose a full-screen surface + sidebar entry + a global command for it. (addSurface and
+  // addSidebarItem are required client-contract methods on 0.9, our manifest floor — no fallback.)
+  client.addSurface("jev", JevSurface);
+  // The left-sidebar row can be hidden when the sidebar is collapsed, so the command is global —
+  // Ctrl/Cmd+K → "Jev" opens the full-screen tab from anywhere.
+  client.addSidebarItem({ id: "jev", title: "Jev", icon: "Scale", surface: "jev" });
+  client.addCommandCenterItem({
+    id: "jev-open",
+    title: "Jev: open full screen",
+    icon: "Scale",
+    keywords: ["jev", "decision", "judge", "task", "choice", "score", "verdict", "full", "screen"],
+    context: "global",
+    onSelect(ctx) {
+      ctx.openSurface("jev");
+    },
+  });
 
   client.addSettingsScreen({
     id: "jev",

@@ -17,7 +17,7 @@ import { font, iconSize, radius, space, weight } from "./theme";
 import { DecisionCardView } from "./card";
 import { CalibrationView } from "./calibration";
 import { JevForm } from "./form";
-import { shortModel, useJevModels, useJevTasks, type JevModel } from "./use-jev";
+import { shortModel, useJevModels, useJevTasks } from "./use-jev";
 
 // Remember each agent's "decide with" pick for the session, so reopening the queue keeps it instead
 // of snapping back to the default model.

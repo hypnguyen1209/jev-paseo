@@ -37,8 +37,6 @@ function coerceConsiderations(v: unknown): Consideration[] | undefined {
 }
 
 export interface JudgeBackend {
-  label: string;
-  multiRound: boolean;
   evaluate(state: unknown, questions: Record<string, Question>): Promise<Record<string, RawAnswer>>;
 }
 
@@ -50,11 +48,9 @@ export type AskFn = (args: { system: string; prompt: string; schema: Record<stri
  * `samples  > 1`: K independent votes → empirical distribution (calibrated, K× the cost) — the
  * self-consistency technique that reproduces jev's calibrated output from a generic model.
  */
-export function makeLlmBackend(model: string, ask: AskFn, samples = 1): JudgeBackend {
+export function makeLlmBackend(ask: AskFn, samples = 1): JudgeBackend {
   const k = Math.max(1, Math.min(9, Math.floor(samples || 1)));
   return {
-    label: k > 1 ? `${model} · ${k}× self-consistency` : model,
-    multiRound: true,
     async evaluate(state, questions) {
       if (k <= 1) {
         const text = await ask({

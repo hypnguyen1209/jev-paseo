@@ -8,12 +8,10 @@ const q: NoulQuestion = { type: "noul", instructions: "Is the bug fixed?" };
 const base = { state: "s", model: "m", threshold: 0.9, reviewFloor: 0.6, maxRounds: 2 };
 
 /** Fake backend replaying a distribution per call; records the questions it saw. */
-function singleReplay(replies: Array<Record<string, number>>, multiRound = true) {
+function singleReplay(replies: Array<Record<string, number>>) {
   let i = 0;
   const seen: Array<Record<string, Question>> = [];
   const backend: JudgeBackend = {
-    label: "fake",
-    multiRound,
     async evaluate(_state, questions) {
       seen.push(questions);
       const rep = replies[Math.min(i, replies.length - 1)];
@@ -70,14 +68,6 @@ describe("runJudge", () => {
     expect(r.verdict).toBe("decided");
     expect(r.band).toBe("medium");
   });
-
-  it("jev-style backend (multiRound=false) → no re-judge even under STRICT", async () => {
-    const { backend, seen } = singleReplay([{ no: 0.5, yes: 0.5 }], false);
-    const r = await runJudge({ ...base, question: q, strict: true, backend });
-    expect(r.rounds).toBe(1);
-    expect(seen.length).toBe(1);
-    expect(r.verdict).toBe("insufficient");
-  });
 });
 
 describe("runBatchJudge (fan-out)", () => {
@@ -88,8 +78,6 @@ describe("runBatchJudge (fan-out)", () => {
       t2: { no: 0.5, yes: 0.5 },
     };
     const backend: JudgeBackend = {
-      label: "fake",
-      multiRound: true,
       async evaluate(_s, questions) {
         calls++;
         const out: Record<string, RawAnswer> = {};
@@ -121,8 +109,6 @@ describe("runBatchJudge (fan-out)", () => {
       s: { "0": 0.1, "1": 0.2, "2": 0.7 },
     };
     const backend: JudgeBackend = {
-      label: "fake",
-      multiRound: true,
       async evaluate(_s, questions) {
         const out: Record<string, RawAnswer> = {};
         for (const id of Object.keys(questions)) out[id] = { probabilities: per[id] ?? {} };
@@ -148,8 +134,6 @@ describe("runBatchJudge (fan-out)", () => {
     const cq = buildQuestion("choice", "pick", ["a", "b"])!;
     const sq = buildQuestion("score", "rate", ["lo", "hi"])!;
     const backend: JudgeBackend = {
-      label: "f",
-      multiRound: true,
       async evaluate(_s, questions) {
         const out: Record<string, RawAnswer> = {};
         for (const id of Object.keys(questions)) out[id] = { probabilities: {} };

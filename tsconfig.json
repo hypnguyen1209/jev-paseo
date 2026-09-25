@@ -12,5 +12,5 @@
     "forceConsistentCasingInFileNames": true,
     "types": ["node"]
   },
-  "include": ["index.client.tsx", "index.server.ts", "shared", "server", "client"]
+  "include": ["index.client.tsx", "index.server.ts", "shared", "server", "client", "tests", "scripts"]
 }

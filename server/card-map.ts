@@ -1,10 +1,10 @@
 // v0.1.0: pure mapping between a parsed request / judge result and the in-session card.
-// Shared by the jev.decide handler and the demo harness so both exercise the same real code.
+// Shared by the judge-task handlers and the demo harness so both exercise the same real code.
 import type { DecisionCard } from "../shared/card";
 import { optionsOf, type Question } from "../shared/contract";
 import type { JudgeResult } from "./judge";
 
-export const pct = (n: number): string => `${Math.round(Math.min(1, Math.max(0, n)) * 100)}%`;
+const pct = (n: number): string => `${Math.round(Math.min(1, Math.max(0, n)) * 100)}%`;
 
 /** Build a typed Question from the flat request fields, or null if options are insufficient. */
 export function buildQuestion(

@@ -194,9 +194,9 @@ describe("listTasksHandler", () => {
     addTask(mk("L2", "list", { createdAt: "2026-09-22T00:00:03Z", status: "resolved" }));
     addTask(mk("L3", "list", { createdAt: "2026-09-22T00:00:02Z" }));
     addTask(mk("X1", "other"));
-    const all = await listTasksHandler()({ workspaceId: "w", agentId: "list" });
+    const all = await listTasksHandler()({ agentId: "list" });
     expect(all.tasks.map((t) => t.id)).toEqual(["L2", "L3", "L1"]);
-    const pending = await listTasksHandler()({ workspaceId: "w", agentId: "list", status: "pending" });
+    const pending = await listTasksHandler()({ agentId: "list", status: "pending" });
     expect(pending.tasks.map((t) => t.id)).toEqual(["L3", "L1"]);
   });
 });
@@ -327,29 +327,56 @@ describe("judgeAllHandler (fan-out)", () => {
   it("resolves ALL pending in ONE backend call", async () => {
     for (const id of ["B1", "B2", "B3"]) addTask(mk(id, "batch"));
     const fc = fakeContext();
-    const res = await judgeAllHandler()({ workspaceId: "w", agentId: "batch", config: cfg() }, fc.context);
+    const res = await judgeAllHandler()({ agentId: "batch", config: cfg() }, fc.context);
     expect(fc.creates()).toBe(1); // fan-out: one model call for all
     expect(res.resolved).toBe(3);
     for (const id of ["B1", "B2", "B3"]) expect(getTask(id)?.status).toBe("resolved");
+  });
+  it("honors a task's own state + description (its own group, not just the shared timeline)", async () => {
+    addTask(mk("E1", "ev", { state: "OWN EVIDENCE ALPHA", description: "gates a deploy" }));
+    addTask(mk("E2", "ev"));
+    const prompts: string[] = [];
+    const ctx = {
+      paseo: {
+        agents: {
+          ref: () => ({ timeline: { append: async () => {}, refetch: async () => ({ entries: [] }) } }),
+          create: async (opts: { prompt?: string; outputSchema?: { properties?: { answers?: { properties?: Record<string, unknown> } } } }) => {
+            prompts.push(opts.prompt ?? "");
+            const props = opts.outputSchema?.properties?.answers?.properties;
+            const ids = props ? Object.keys(props) : ["main"];
+            const answers: Record<string, unknown> = {};
+            for (const id of ids) answers[id] = { probabilities: { no: 0.1, yes: 0.9 } };
+            return {
+              waitForFinish: async () => ({ status: "idle", lastMessage: JSON.stringify({ answers }), final: null, error: null }),
+              archive: async () => {},
+            };
+          },
+        },
+      },
+    } as unknown as PluginHandlerContext;
+    const res = await judgeAllHandler()({ agentId: "ev", config: cfg() }, ctx);
+    expect(res.resolved).toBe(2);
+    expect(prompts).toHaveLength(2); // two evidence groups → two calls
+    expect(prompts.some((p) => p.includes("OWN EVIDENCE ALPHA") && p.includes("Context: gates a deploy"))).toBe(true);
   });
   it("skips invalid tasks and resolves the valid ones (no throw)", async () => {
     addTask(mk("V1", "mix"));
     addTask(mk("V2", "mix"));
     addTask(mk("BAD", "mix", { type: "choice", options: ["only"] }));
-    const res = await judgeAllHandler()({ workspaceId: "w", agentId: "mix", config: cfg() }, fakeContext().context);
+    const res = await judgeAllHandler()({ agentId: "mix", config: cfg() }, fakeContext().context);
     expect(res.resolved).toBe(2);
     expect(getTask("V1")?.status).toBe("resolved");
     expect(getTask("BAD")?.status).toBe("pending");
   });
   it("shadow: leaves all pending, resolved 0 + note", async () => {
     for (const id of ["S1", "S2"]) addTask(mk(id, "batchS"));
-    const res = await judgeAllHandler()({ workspaceId: "w", agentId: "batchS", config: cfg({ shadow: true }) }, fakeContext().context);
+    const res = await judgeAllHandler()({ agentId: "batchS", config: cfg({ shadow: true }) }, fakeContext().context);
     expect(res.resolved).toBe(0);
     expect(res.note).toContain("shadow");
     for (const id of ["S1", "S2"]) expect(getTask(id)?.status).toBe("pending");
   });
   it("no pending → note", async () => {
-    const res = await judgeAllHandler()({ workspaceId: "w", agentId: "empty", config: cfg() }, fakeContext().context);
+    const res = await judgeAllHandler()({ agentId: "empty", config: cfg() }, fakeContext().context);
     expect(res.resolved).toBe(0);
     expect(res.note).toContain("No pending");
   });

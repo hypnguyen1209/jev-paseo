@@ -23,7 +23,6 @@ export const JevModelsRpc = defineRpc({
 export const JevListTasksRpc = defineRpc({
   name: "jev.list-tasks",
   input: z.object({
-    workspaceId: z.string(),
     agentId: z.string(),
     status: z.enum(["pending", "resolved"]).optional(),
   }),
@@ -95,12 +94,12 @@ export const JevReopenTaskRpc = defineRpc({
 /** Fan-out: resolve every pending task for the agent in ONE model call. */
 export const JevJudgeAllRpc = defineRpc({
   name: "jev.judge-all",
-  input: z.object({ workspaceId: z.string(), agentId: z.string(), config: jevSettingsSchema }),
+  input: z.object({ agentId: z.string(), config: jevSettingsSchema }),
   output: z.object({ resolved: z.number(), note: z.string().optional() }),
 });
 
-/** One decision-log record, for CSV export. Mirrors server/log.ts DecisionLog. */
-export const DecisionLogRecordSchema = z.object({
+/** One decision-log record, for CSV export. server/log.ts's DecisionLog aliases this. */
+const DecisionLogRecordSchema = z.object({
   taskId: z.string(),
   agentId: z.string(),
   type: z.enum(["noul", "choice", "score"]),

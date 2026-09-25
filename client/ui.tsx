@@ -84,7 +84,7 @@ export function Chip({
   );
 }
 
-export type ButtonVariant = "default" | "secondary" | "ghost";
+type ButtonVariant = "default" | "secondary" | "ghost";
 
 /** A button with Paseo's geometry: radius lg, 32pt tall, accent fill, press dims to 0.85. */
 export function Button({
@@ -141,7 +141,7 @@ export function Button({
   );
 }
 
-export interface DropdownItem {
+interface DropdownItem {
   key: string;
   label: string;
   /** Muted trailing tag, e.g. the provider / agent harness behind a model. */

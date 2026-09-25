@@ -1,4 +1,4 @@
-// v0.1.0: host-scoped defaults. `defaultModel` is the fallback provider/model used when a /jev
+// v0.1.0: host-scoped defaults. `defaultModel` is the fallback provider/model used when a judge
 // call or the panel doesn't override it — this is what makes "set the model once" work.
 import { defineSettings } from "@getpaseo/plugin";
 import { z } from "zod";

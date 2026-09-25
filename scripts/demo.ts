@@ -1,7 +1,7 @@
 // Runnable demo (no Paseo daemon) of jev-paseo v0.3: the real judge pipeline with the backend seam.
 // Shows: (1) single multi-round STRICT judge, (2) FAN-OUT — many tasks resolved in ONE backend call,
-// (3) the real-jev backend shape (via a fake fetch), (4) a user (manual) resolution, all with bands.
-// Only the transports (LLM `ask` / jev `fetch`) are faked; everything else is production code. npm run demo
+// (3) K-vote self-consistency, (4) a user (manual) resolution, all with bands.
+// Only the transport (the LLM `ask`) is faked; everything else is production code. npm run demo
 import { runBatchJudge, runJudge, type BatchTask } from "../server/judge";
 import { makeLlmBackend, type AskFn } from "../server/backend";
 import { buildQuestion, toCard, userCard } from "../server/card-map";
@@ -49,7 +49,7 @@ function llmBackend(perCall: Array<Record<string, Record<string, number>>>): Ret
     for (const id of ids) answers[id] = { probabilities: byId[id] ?? {}, reasoning: "scripted" };
     return JSON.stringify({ answers });
   };
-  return Object.assign(makeLlmBackend("demo/model", ask), { calls: () => n });
+  return Object.assign(makeLlmBackend(ask), { calls: () => n });
 }
 
 async function main(): Promise<void> {
@@ -95,7 +95,7 @@ async function main(): Promise<void> {
     question: q("noul", "Is this change ready to ship?"),
     state: "evidence",
     model: "anthropic/claude-sonnet-5",
-    backend: makeLlmBackend("anthropic/claude-sonnet-5", voteAsk, 5),
+    backend: makeLlmBackend(voteAsk, 5),
   });
   renderCard(toCard(r3));
 

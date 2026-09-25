@@ -2,6 +2,7 @@
 // plugin tree in a QueryClientProvider (a per-plugin QueryClient), so useQuery/useMutation work
 // directly. Reads are queries keyed by agent; writes are mutations that invalidate those queries.
 import { useMemo } from "react";
+import type { RpcOutput } from "@getpaseo/plugin";
 import { useRpc, useSettings } from "@getpaseo/plugin/client";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { jevSettings, jevSettingsSchema } from "../shared/settings";
@@ -19,18 +20,8 @@ import {
 } from "../shared/rpc";
 import type { JevTask } from "../shared/task";
 
-export type JevStats = {
-  total: number;
-  byModel: number;
-  byUser: number;
-  meanConfidence: number;
-  bands: { high: number; medium: number; low: number };
-  compared: number;
-  agreements: number;
-  agreementRate: number | null;
-  histogram: number[];
-  recent: Array<{ band: "high" | "medium" | "low" | null; confidence: number; decidedBy: "user" | "model" }>;
-};
+/** The calibration fold, exactly as the stats RPC returns it (one source of truth: shared/rpc). */
+export type JevStats = RpcOutput<typeof JevStatsRpc>;
 
 export interface JevModel {
   id: string;
@@ -74,8 +65,7 @@ export interface AddTaskInput {
 
 type Result = { ok: boolean; note?: string };
 
-export interface UseJevTasks {
-  tasks: JevTask[];
+interface UseJevTasks {
   pending: JevTask[];
   resolved: JevTask[];
   stats: JevStats | null;
@@ -118,31 +108,33 @@ export function useJevTasks(workspaceId: string, agentId: string, cwd: string): 
   const settingsValues = settings.status === "ready" ? settings.values : null;
   const config = useMemo(() => settingsValues ?? jevSettingsSchema.parse({}), [settingsValues]);
 
-  const tasksKey = useMemo(() => ["jev", "tasks", workspaceId, agentId] as const, [workspaceId, agentId]);
+  const tasksKey = useMemo(() => ["jev", "tasks", agentId] as const, [agentId]);
   const statsKey = useMemo(() => ["jev", "stats", agentId] as const, [agentId]);
 
-  const tasksQuery = useQuery({ queryKey: tasksKey, queryFn: () => listTasks({ workspaceId, agentId }) });
+  const tasksQuery = useQuery({ queryKey: tasksKey, queryFn: () => listTasks({ agentId }) });
   const statsQuery = useQuery({ queryKey: statsKey, queryFn: () => statsRpc({ agentId }) });
 
   const invTasks = () => qc.invalidateQueries({ queryKey: tasksKey });
   const invBoth = () =>
     Promise.all([qc.invalidateQueries({ queryKey: tasksKey }), qc.invalidateQueries({ queryKey: statsKey })]);
 
+  // onSettled (not onSuccess): a transport error can land AFTER the server already applied the write
+  // (e.g. a timeout on a slow judge), so refetch either way and let the store be the truth.
   // add / update / remove don't touch the decision log → only the tasks query needs refresh.
-  const addM = useMutation({ mutationFn: (input: AddTaskInput) => addRpc({ workspaceId, agentId, cwd, ...input }), onSuccess: invTasks });
-  const updateM = useMutation({ mutationFn: (v: { id: string; input: AddTaskInput }) => updateRpc({ id: v.id, ...v.input }), onSuccess: invTasks });
-  const removeM = useMutation({ mutationFn: (id: string) => removeRpc({ id }), onSuccess: invTasks });
+  const addM = useMutation({ mutationFn: (input: AddTaskInput) => addRpc({ workspaceId, agentId, cwd, ...input }), onSettled: invTasks });
+  const updateM = useMutation({ mutationFn: (v: { id: string; input: AddTaskInput }) => updateRpc({ id: v.id, ...v.input }), onSettled: invTasks });
+  const removeM = useMutation({ mutationFn: (id: string) => removeRpc({ id }), onSettled: invTasks });
   // judge / resolve / rejudge / judge-all also write the log → refresh tasks + stats.
-  const judgeM = useMutation({ mutationFn: (v: { id: string; model?: string }) => judgeRpc({ id: v.id, model: v.model, config }), onSuccess: invBoth });
+  const judgeM = useMutation({ mutationFn: (v: { id: string; model?: string }) => judgeRpc({ id: v.id, model: v.model, config }), onSettled: invBoth });
   const rejudgeM = useMutation({
     mutationFn: async (v: { id: string; model?: string }) => {
       await reopenRpc({ id: v.id }); // back to pending so the guarded judge can overwrite
       return judgeRpc({ id: v.id, model: v.model, config });
     },
-    onSuccess: invBoth,
+    onSettled: invBoth,
   });
-  const resolveM = useMutation({ mutationFn: (v: { id: string; choiceKey: string }) => resolveRpc({ id: v.id, choiceKey: v.choiceKey, config }), onSuccess: invBoth });
-  const judgeAllM = useMutation({ mutationFn: () => judgeAllRpc({ workspaceId, agentId, config }), onSuccess: invBoth });
+  const resolveM = useMutation({ mutationFn: (v: { id: string; choiceKey: string }) => resolveRpc({ id: v.id, choiceKey: v.choiceKey, config }), onSettled: invBoth });
+  const judgeAllM = useMutation({ mutationFn: () => judgeAllRpc({ agentId, config }), onSettled: invBoth });
 
   const busyId =
     pendingId(judgeM) ?? pendingId(rejudgeM) ?? pendingId(resolveM) ?? pendingId(removeM) ?? pendingId(updateM);
@@ -162,7 +154,6 @@ export function useJevTasks(workspaceId: string, agentId: string, cwd: string): 
   const resolved = useMemo(() => tasks.filter((t) => t.status === "resolved"), [tasks]);
 
   return {
-    tasks,
     pending,
     resolved,
     stats: statsQuery.data ?? null,

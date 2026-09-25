@@ -1,7 +1,7 @@
 // v0.1.0: the jev/kev typed-decision *contract*, reimplemented model-agnostically.
 // kev/jev ship this as fine-tuned weights with no prompt; here the same three question
 // types + calibrated confidence are produced by prompting an arbitrary chat model and
-// post-processing its probability distribution. Pure (zod only) so it is unit-testable.
+// post-processing its probability distribution. Pure (no imports) so it is unit-testable.
 
 export interface NoulQuestion {
   type: "noul";
@@ -162,9 +162,9 @@ export function bandOf(confidence: number, autoAccept = 0.9, reviewFloor = 0.6):
 
 // --- Fan-out: many questions over one shared state in a single call --------------------------
 
-/** Build one prompt asking every question independently over the same STATE. */
-export function buildBatchPrompt(state: unknown, questions: Record<string, Question>): string {
-  const blocks = Object.entries(questions)
+/** One `## id (type): question` block with its OPTIONS list, per question (shared by both prompts). */
+function questionBlocks(questions: Record<string, Question>): string {
+  return Object.entries(questions)
     .map(([id, q]) => {
       const opts = optionsOf(q);
       return [
@@ -174,6 +174,11 @@ export function buildBatchPrompt(state: unknown, questions: Record<string, Quest
       ].join("\n");
     })
     .join("\n\n");
+}
+
+/** Build one prompt asking every question independently over the same STATE. */
+export function buildBatchPrompt(state: unknown, questions: Record<string, Question>): string {
+  const blocks = questionBlocks(questions);
   const shape = Object.keys(questions)
     .map(
       (id) =>
@@ -206,16 +211,7 @@ export function buildBatchPrompt(state: unknown, questions: Record<string, Quest
 
 /** Ask the model to pick the SINGLE best option per question (one vote). */
 export function buildVotePrompt(state: unknown, questions: Record<string, Question>): string {
-  const blocks = Object.entries(questions)
-    .map(([id, q]) => {
-      const opts = optionsOf(q);
-      return [
-        `## ${id} (${q.type}): ${q.instructions}`,
-        "OPTIONS:",
-        opts.map((o) => `- ${o.key}: ${o.label}`).join("\n"),
-      ].join("\n");
-    })
-    .join("\n\n");
+  const blocks = questionBlocks(questions);
   const shape = Object.keys(questions)
     .map((id) => `"${id}": {"choice": "<one option key>"}`)
     .join(", ");

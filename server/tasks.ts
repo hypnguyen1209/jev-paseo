@@ -1,6 +1,6 @@
 // v0.3.0: judge-task handlers. add-task queues a pending decision; judge-task resolves one with the
 // multi-round STRICT judge; judge-all resolves EVERY pending task in one fan-out backend call;
-// resolve-task resolves one manually. Backend is the real jev API or any LLM. Never throws.
+// resolve-task resolves one manually. The backend is whatever LLM the host exposes. Never throws.
 import type { RpcInput, RpcOutput } from "@getpaseo/plugin";
 import type { PluginHandlerContext } from "@getpaseo/plugin/server";
 import { JEV_DECISION_KIND, JEV_DECISION_VERSION, type DecisionCard } from "../shared/card";
@@ -68,6 +68,12 @@ async function appendCard(context: PluginHandlerContext, agentId: string, card: 
 }
 
 const fpct = (n: number): string => `${Math.round(Math.min(1, Math.max(0, n)) * 100)}%`;
+
+/** Fold the human-entered description into what the judge reads, ahead of the evidence. */
+const withContext = (task: JevTask, evidence: string): string => {
+  const desc = task.description?.trim();
+  return desc ? `Context: ${desc}\n\n${evidence}` : evidence;
+};
 
 /** Feedback fires when the Jev setting is on, or the JEV_FEEDBACK=1 env (for the hook/auto-judge path). */
 const feedbackEnabled = (cfg: JevSettingsValues): boolean => cfg.feedback || process.env.JEV_FEEDBACK === "1";
@@ -165,9 +171,8 @@ export async function judgeTask(
 
   const strict = task.strict ?? defaults.strict;
   const evidence = (task.state ?? "").trim() || (await recentState(context, task.agentId));
-  const desc = task.description?.trim();
-  const state = desc ? `Context: ${desc}\n\n${evidence}` : evidence; // fold the description into the judge's evidence
-  const backend = makeLlmBackend(model, makeAsk(context, task.cwd, model, task.agentId), defaults.samples);
+  const state = withContext(task, evidence);
+  const backend = makeLlmBackend(makeAsk(context, task.cwd, model, task.agentId), defaults.samples);
   const result = await runJudge({
     question,
     state,
@@ -224,27 +229,36 @@ export function judgeAllHandler() {
       const valid = pending.filter((t) => buildQuestion(t.type, t.instructions, t.options));
       if (!valid.length) return { resolved: 0, note: "No valid pending tasks (choice/score need ≥2 options)." };
 
-      const state = await recentState(context, input.agentId);
+      // Shared evidence is only needed by tasks without their own state (mirrors the single path,
+      // which skips the timeline refetch when explicit evidence was given).
+      const needShared = valid.some((t) => !(t.state ?? "").trim());
+      const shared = needShared ? await recentState(context, input.agentId) : "";
       const effModel = (t: JevTask) => t.model?.trim() || defaults.defaultModel;
+      const evidenceOf = (t: JevTask) => withContext(t, (t.state ?? "").trim() || shared);
 
-      // Group by effective model so a task's preferred model is honored; tasks sharing a model still
-      // resolve in one call. Chunk each group so a large batch can't overflow one prompt.
-      const groups = new Map<string, JevTask[]>();
+      // Group by effective model AND evidence, so a task's preferred model and its own state /
+      // description are honored (the single-judge path folds both; the batch must too). Tasks with
+      // no per-task evidence share one call as before. Chunk each group so a large batch can't
+      // overflow one prompt.
+      const groups = new Map<string, { model: string; state: string; tasks: JevTask[] }>();
       for (const t of valid) {
-        const g = groups.get(effModel(t));
-        if (g) g.push(t);
-        else groups.set(effModel(t), [t]);
+        const model = effModel(t);
+        const state = evidenceOf(t);
+        const key = `${model}\u0000${state}`;
+        const g = groups.get(key);
+        if (g) g.tasks.push(t);
+        else groups.set(key, { model, state, tasks: [t] });
       }
 
       const results: Record<string, JudgeResult> = {};
       let lastErr: unknown;
-      for (const [model, tasks] of groups) {
+      for (const { model, state, tasks } of groups.values()) {
         const modelErr = modelFormatError(model);
         if (modelErr) {
           lastErr = new Error(modelErr);
           continue;
         }
-        const backend = makeLlmBackend(model, makeAsk(context, tasks[0].cwd, model, input.agentId), defaults.samples);
+        const backend = makeLlmBackend(makeAsk(context, tasks[0].cwd, model, input.agentId), defaults.samples);
         const batchTasks: BatchTask[] = tasks.map((t) => ({
           id: t.id,
           question: buildQuestion(t.type, t.instructions, t.options)!,
@@ -322,7 +336,10 @@ export function resolveTaskHandler() {
         return { ok: false, note: `unknown option "${input.choiceKey}" for this task.` };
       }
       const card: DecisionCard = { ...userCard(task.type, task.instructions, task.options, input.choiceKey), description: task.description };
+      // Unguarded on purpose: a user pick may overwrite a model resolution that landed mid-click.
+      // null only means the task vanished (removed concurrently) — then don't log/card a ghost.
       const updated = updateTask(task.id, { status: "resolved", decidedBy: "user", result: card });
+      if (!updated) return { ok: false, note: "task not found." };
       appendLog({
         taskId: task.id,
         agentId: task.agentId,
@@ -339,7 +356,7 @@ export function resolveTaskHandler() {
       });
       await appendCard(context, task.agentId, card);
       await sendFeedback(context, task, card, feedbackEnabled(input.config), feedbackAllEnabled(input.config));
-      return { ok: true, task: updated ?? task };
+      return { ok: true, task: updated };
     } catch (e) {
       return { ok: false, note: e instanceof Error ? e.message : String(e) };
     }

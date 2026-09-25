@@ -12,7 +12,7 @@ import type { AddTaskInput, JevModel } from "./use-jev";
 
 type DecisionType = "choice" | "score" | "noul";
 
-export interface JevFormInitial {
+interface JevFormInitial {
   type: DecisionType;
   instructions: string;
   description?: string;
