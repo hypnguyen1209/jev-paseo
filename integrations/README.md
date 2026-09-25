@@ -27,7 +27,7 @@ What it writes, per harness:
 | Codex CLI | `AGENTS.md` (repo root) | project instructions |
 | Pi | `APPEND_SYSTEM.md` (repo root) | Pi auto-discovers it in the cwd and composes it into the system prompt |
 
-Re-running is safe. The block is fenced with `<!-- jev:begin -->` / `<!-- jev:end -->`, so a second run updates it in place and never duplicates or touches your other content. `bash install.sh --help` lists the flags.
+Re-running is safe. The block is fenced with `<!-- jev:begin -->` / `<!-- jev:end -->`, so a second run updates it in place and never duplicates or touches your other content. `bash install.sh --uninstall` removes exactly what was installed (the fenced block, the skill directory) and leaves the rest of your files alone. `bash install.sh --help` lists the flags.
 
 ## Install (manual)
 

@@ -12,6 +12,7 @@ snippet="$here/snippet.md"
 target="$PWD"
 global=0
 memory=0
+uninstall=0
 harnesses=()
 
 # frontmatter for the generated Claude Code skill; the body comes from snippet.md (single source)
@@ -30,6 +31,7 @@ Usage: bash install.sh [options] [claude|codex|pi|all ...]
   --target DIR   project directory to install into (default: current directory)
   --global       Claude Code: install the skill under ~/.claude/skills (all projects)
   --memory       Claude Code: append to CLAUDE.md instead of installing the skill
+  --uninstall    remove what this script installed (the fenced block, the skill dir)
   -h, --help     show this help
 
 No harness given installs all three. Re-running is safe (updates in place).
@@ -38,6 +40,7 @@ Examples:
   bash install.sh                       # all three, into ./
   bash install.sh --target ../myproj codex pi
   bash install.sh --global claude       # skill for every Claude Code project
+  bash install.sh --uninstall           # remove the jev blocks and skill again
 USAGE
 }
 
@@ -46,6 +49,7 @@ while [ $# -gt 0 ]; do
     --target) target="$2"; shift 2 ;;
     --global) global=1; shift ;;
     --memory) memory=1; shift ;;
+    --uninstall) uninstall=1; shift ;;
     -h|--help) usage; exit 0 ;;
     claude|codex|pi|all) harnesses+=("$1"); shift ;;
     *) echo "unknown argument: $1" >&2; usage; exit 1 ;;
@@ -55,6 +59,29 @@ done
 case " ${harnesses[*]} " in *" all "*) harnesses=(claude codex pi) ;; esac
 
 [ -f "$snippet" ] || { echo "missing $snippet" >&2; exit 1; }
+
+# Remove the jev block (sentinels inclusive) from a file, keeping everything the user wrote.
+remove_block() {
+  local file="$1"
+  [ -f "$file" ] || return 0
+  if ! grep -q '<!-- jev:begin -->' "$file"; then return 0; fi
+  if ! grep -q '<!-- jev:end -->' "$file"; then
+    echo "  warning: $file has an unterminated jev block; not touching it" >&2
+    return 0
+  fi
+  local tmp; tmp="$(mktemp)"
+  awk '/<!-- jev:begin -->/{skip=1} skip==0{print} /<!-- jev:end -->/{skip=0}' "$file" > "$tmp"
+  mv "$tmp" "$file"
+  echo "  removed jev block from $file"
+}
+
+remove_skill() {
+  local dir="$1"
+  if [ -d "$dir" ]; then
+    rm -rf "$dir"
+    echo "  removed $dir"
+  fi
+}
 
 # Append (or replace) the jev block, fenced by sentinels, in a markdown file. Creates it if absent.
 append_block() {
@@ -70,6 +97,19 @@ append_block() {
 }
 
 for h in "${harnesses[@]}"; do
+  if [ "$uninstall" -eq 1 ]; then
+    case "$h" in
+      codex) echo "codex:"; remove_block "$target/AGENTS.md" ;;
+      pi)    echo "pi:"; remove_block "$target/APPEND_SYSTEM.md" ;;
+      claude)
+        echo "claude:"
+        remove_block "$target/CLAUDE.md"
+        remove_skill "$target/.claude/skills/jev"
+        if [ "$global" -eq 1 ]; then remove_skill "$HOME/.claude/skills/jev"; fi
+        ;;
+    esac
+    continue
+  fi
   case "$h" in
     codex) echo "codex:"; append_block "$target/AGENTS.md" ;;
     pi)    echo "pi:"; append_block "$target/APPEND_SYSTEM.md" ;;
@@ -87,6 +127,8 @@ for h in "${harnesses[@]}"; do
       ;;
   esac
 done
+
+[ "$uninstall" -eq 1 ] && exit 0
 
 cat <<'NOTE'
 
