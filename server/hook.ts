@@ -15,6 +15,12 @@ const INSTRUCTION = [
   "Example: `[jev] choice: Which fix is safer? | rollback | hotfix`.",
 ].join(" ");
 
+// Circuit breakers (loop-engineering's "no attempt cap" / token-burn failure modes). The de-dupe
+// below only blocks IDENTICAL questions; an agent rephrasing each turn could otherwise drive the
+// autojudge+feedback loop forever. Past a cap the task still queues, but waits for the human.
+const MAX_MARKERS_PER_TURN = 5;
+const MAX_AUTOJUDGE_PER_HOUR = 10;
+
 function envConfig(): { config: JevSettingsValues; autoJudge: boolean } {
   const config = jevSettingsSchema.parse({
     defaultModel: process.env.JEV_HOOK_MODEL ?? "",
@@ -36,13 +42,13 @@ export function registerJevHook(server: PluginServerContext): void {
       if (!markers.length) return;
 
       // de-dupe: skip a question already queued/resolved for this agent (turn_ended can replay history)
-      const seen = new Set(
-        readStore()
-          .filter((t) => t.agentId === agent.id)
-          .map((t) => `${t.type}:${t.instructions}`),
-      );
+      const store = readStore();
+      const mine = store.filter((t) => t.agentId === agent.id);
+      const seen = new Set(mine.map((t) => `${t.type}:${t.instructions}`));
+      const hourAgo = Date.now() - 3_600_000;
+      let recentMarkers = mine.filter((t) => t.source === "marker" && Date.parse(t.createdAt) > hourAgo).length;
       const { config, autoJudge } = envConfig();
-      for (const m of markers) {
+      for (const m of markers.slice(0, MAX_MARKERS_PER_TURN)) {
         const key = `${m.type}:${m.instructions}`;
         if (seen.has(key)) continue;
         seen.add(key);
@@ -60,8 +66,10 @@ export function registerJevHook(server: PluginServerContext): void {
           status: "pending",
         };
         addTask(task);
-        // fire-and-forget: never hold the turn-ended observer on a model call
-        if (autoJudge) void judgeTask(task, config, context).catch(() => {});
+        recentMarkers++;
+        // fire-and-forget: never hold the turn-ended observer on a model call. Past the hourly
+        // breaker the task queues without a judge — a human decides whether the loop goes on.
+        if (autoJudge && recentMarkers <= MAX_AUTOJUDGE_PER_HOUR) void judgeTask(task, config, context).catch(() => {});
       }
     } catch {
       // observers are best-effort; a parse/store hiccup must not affect the turn

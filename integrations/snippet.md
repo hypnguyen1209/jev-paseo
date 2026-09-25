@@ -17,3 +17,5 @@ This project runs on Paseo with the **jev** plugin. To hand off a small, high-st
 ```
 
 Use it for a costly choice, a yes/no gate you should not decide alone, or a risk level. Not for trivia or things you can verify yourself, and at most once or twice per turn. State the evidence in your message first (jev judges from the recent session text), emit the marker last before you end the turn, then stop and wait. With `JEV_FEEDBACK=1` the verdict returns as a `[jev] Decision on "...": ...` message to continue from; otherwise the user resolves it in the Jev panel.
+
+When a verdict comes back, act on it. Do not re-ask the same question, rephrased or otherwise. If the verdict says low confidence or "insufficient", the evidence was not there: ask the user, do not ask the judge again. jev enforces this mechanically (at most 5 markers per turn are queued, and past 10 marker tasks in an hour new ones wait for the user), so a question loop stalls instead of burning calls.

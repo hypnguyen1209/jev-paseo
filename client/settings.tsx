@@ -134,6 +134,10 @@ export function JevSettings({ theme }: PluginSurfaceProps) {
           disabled={settings.saving}
           onValueChange={(r) => save({ maxRounds: Number(r) })}
         />
+        <Text style={{ color: theme.colors.foregroundMuted, fontSize: 12 }}>
+          Worst case per STRICT task: {v.samples} sample{v.samples > 1 ? "s" : ""} × {v.maxRounds} round
+          {v.maxRounds > 1 ? "s" : ""} = {v.samples * v.maxRounds} model calls.
+        </Text>
       </SettingsCard>
 
       {settings.saveError ? (

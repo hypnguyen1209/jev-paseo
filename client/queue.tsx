@@ -439,7 +439,14 @@ export function JevQueueScreen({
             </Text>
             <Icon name={showCalib ? "ChevronDown" : "ChevronRight"} size={iconSize.sm} color={c.foregroundMuted} />
           </Pressable>
-          {showCalib ? <CalibrationView theme={theme} stats={stats} onExportCsv={onExportCsv} /> : null}
+          {showCalib ? (
+            <CalibrationView
+              theme={theme}
+              stats={stats}
+              shadow={settings.status === "ready" && settings.values.shadow}
+              onExportCsv={onExportCsv}
+            />
+          ) : null}
         </View>
       ) : null}
     </ScrollView>

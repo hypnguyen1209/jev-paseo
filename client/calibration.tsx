@@ -45,13 +45,21 @@ function StatBar({
   );
 }
 
+// Graduation criteria (loop-engineering L1→L2: report-only is the calibration phase; move up only
+// on measured accuracy): enough compared decisions, high enough agreement.
+const GRADUATE_MIN_COMPARED = 10;
+const GRADUATE_MIN_AGREEMENT = 0.8;
+
 export function CalibrationView({
   theme,
   stats,
+  shadow,
   onExportCsv,
 }: {
   theme: PluginTheme;
   stats: JevStats;
+  /** shadow mode is on — show the graduation nudge once the model has earned trust */
+  shadow?: boolean;
   onExportCsv?: () => void;
 }) {
   const c = theme.colors;
@@ -85,6 +93,11 @@ export function CalibrationView({
           right={`${Math.round(stats.agreementRate * 100)}% of ${stats.compared}`}
           color={c.statusSuccess}
         />
+      ) : null}
+      {shadow && stats.agreementRate !== null && stats.compared >= GRADUATE_MIN_COMPARED && stats.agreementRate >= GRADUATE_MIN_AGREEMENT ? (
+        <Text style={{ color: c.statusSuccess, fontSize: font.sm }}>
+          The model agreed with you on {Math.round(stats.agreementRate * 100)}% of {stats.compared} decisions. Shadow mode has done its job: consider switching it off and letting the model resolve.
+        </Text>
       ) : null}
       {stats.byModel > 0 ? (
         <StatBar
